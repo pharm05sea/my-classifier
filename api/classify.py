@@ -24,6 +24,7 @@ TIMEOUT_SEC = 60
 MAX_TEXTS = 10
 MAX_TEXT_LEN = 500
 MAX_BODY = 20000
+MAX_MODELS = 5  # 화면 드롭다운에 보여 줄 최근 모델 수
 MODEL_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$")
 
 
@@ -128,11 +129,33 @@ def list_models():
         if _MODEL_CACHE["names"]:
             return _MODEL_CACHE["names"]  # 새로 못 받으면 이전에 받은 목록을 쓴다
         raise ApiError(502, "Gemini 모델 목록을 받지 못했습니다")
-    names = sorted(set(names))
+    names = newest_models(names, MAX_MODELS)
     if not names:
         raise ApiError(502, "Gemini 모델 목록이 비어 있습니다")
     _MODEL_CACHE["at"], _MODEL_CACHE["names"] = now, names
     return names
+
+
+def _version_key(name):
+    """이름에서 버전 번호를 읽어 정렬 키를 만든다. gemini-3.5-flash → (3, 5). 번호가 없는 이름(…-latest 등)은 None."""
+    m = re.match(r"^gemini-(\d+)(?:\.(\d+))?", name)
+    if not m:
+        return None
+    return (int(m.group(1)), int(m.group(2) or 0))
+
+
+def newest_models(names, limit):
+    """Google 목록에는 출시일이 없어서, 이름 속 버전 번호가 큰 순서로 limit 개를 고른다.
+    같은 버전이면 미리보기·날짜 붙은 이름(preview, exp, 숫자 꼬리)을 뒤로 보낸다."""
+    ranked = []
+    for n in set(names):
+        v = _version_key(n)
+        if v is None:
+            continue
+        unstable = bool(re.search(r"preview|exp|-\d{2,}", n[len("gemini-"):]))
+        ranked.append(((-v[0], -v[1], unstable, n), n))
+    ranked.sort()
+    return [n for _, n in ranked[:limit]]
 
 
 def pick_model(requested):

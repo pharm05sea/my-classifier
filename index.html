@@ -690,8 +690,14 @@ function renderPills() {
 function modelSelect(id) {
   var cur = S.pick && S.models.indexOf(S.pick) >= 0 ? S.pick : "";
   var ms = h("select", { id: id, "aria-label": "Gemini 모델 선택", title: "503(혼잡)이 나면 다른 모델로 바꿔 다시 분류하세요. 채점 결과에는 쓴 모델 이름이 함께 기록됩니다." });
-  ms.append(h("option", { value: "", text: "기본 (" + (S.defaultModel || "서버 설정") + ")" }));
-  S.models.forEach(function (m) { if (m !== S.defaultModel) ms.append(h("option", { value: m, text: m })); });
+  // 서버가 준 최근 모델 5개를 보여 준다. 기본 모델은 "기본"으로 표시하고, 목록에 없으면 맨 앞에 넣어 전체를 5개로 맞춘다.
+  var list = S.models.slice(0, 5);
+  if (S.defaultModel && list.indexOf(S.defaultModel) < 0) list = [S.defaultModel].concat(list.slice(0, 4));
+  list.forEach(function (m) {
+    var isDef = m === S.defaultModel;
+    ms.append(h("option", { value: isDef ? "" : m, text: isDef ? "기본 (" + m + ")" : m }));
+  });
+  if (!S.defaultModel) ms.insertBefore(h("option", { value: "", text: "기본 (서버 설정)" }), ms.firstChild);
   ms.value = cur;
   ms.addEventListener("change", function () {
     S.pick = ms.value; lsSet("npd_model_v1", S.pick); S.model = S.pick || S.defaultModel;
