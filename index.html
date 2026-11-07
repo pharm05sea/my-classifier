@@ -65,6 +65,10 @@ h1 { font-size: 24px; line-height: 1.25; margin: 0; font-weight: 600; letter-spa
 .pill.warn { border-color: var(--mid); color: var(--mid); background: var(--mid-soft); }
 .pill select { font: inherit; font-size: 12px; color: var(--ink); background: transparent; border: 0; padding: 0 2px; max-width: 200px; cursor: pointer; }
 .pill select option { background: var(--surface); color: var(--ink); }
+.model-slot { display: inline-flex; align-items: center; gap: 6px; }
+.model-slot .lbl-inline { font-size: 13px; color: var(--muted); }
+.model-slot select { font: inherit; font-size: 14px; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; max-width: 260px; cursor: pointer; }
+.model-slot select option { background: var(--surface); color: var(--ink); }
 nav.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); overflow-x: auto; }
 nav.tabs a { padding: 10px 14px; text-decoration: none; color: var(--muted); font-weight: 500; border-bottom: 2px solid transparent; white-space: nowrap; margin-bottom: -1px; }
 nav.tabs a:hover { color: var(--ink); }
@@ -677,17 +681,29 @@ function renderPills() {
   var p = $("#pills"); if (!p) return; p.textContent = "";
   var ai = S.aiMode === "ai" ? "Gemini 분류" : S.aiMode === "rule" ? "간이 분류" : "Gemini 분류";
   p.append(h("span", { class: "pill" + (S.aiMode === "rule" ? " warn" : ""), title: S.model ? "모델 " + S.model : "" }, "분류: ", h("b", { text: ai })));
-  if (S.models.length) {   // 모델 고르기: 목록을 받았을 때만 보인다
-    var cur = S.pick && S.models.indexOf(S.pick) >= 0 ? S.pick : "";
-    var ms = h("select", { id: "model-pick", "aria-label": "Gemini 모델 선택", title: "503(혼잡)이 나면 다른 모델로 바꿔 다시 분류하세요. 채점 결과에는 쓴 모델 이름이 함께 기록됩니다." });
-    ms.append(h("option", { value: "", text: "기본 (" + (S.defaultModel || "서버 설정") + ")" }));
-    S.models.forEach(function (m) { if (m !== S.defaultModel) { var o = h("option", { value: m, text: m }); ms.append(o); } });
-    ms.value = cur;
-    ms.addEventListener("change", function () { S.pick = ms.value; lsSet("npd_model_v1", S.pick); S.model = S.pick || S.defaultModel; renderPills(); toast(S.pick ? "모델을 " + S.pick + "로 바꿨습니다." : "기본 모델로 돌아갔습니다."); });
-    p.append(h("span", { class: "pill" }, "모델: ", ms));
-  }
+  if (S.models.length) p.append(h("span", { class: "pill" }, "모델: ", modelSelect("model-pick")));   // 목록을 받았을 때만 보인다
   var st = S.store === "db" ? (S.storeErr ? "공유 목록(연결 불안정)" : "공유 목록") : S.store === "local" ? "이 브라우저만" : "확인 중";
   p.append(h("span", { class: "pill" + (S.store === "local" ? " warn" : ""), title: S.storeErr || "" }, "저장: ", h("b", { text: st })));
+  fillModelSlot();
+}
+/* 모델 고르기 드롭다운. 위쪽 배지 줄과 분류하기 버튼 옆에 같은 값으로 나란히 보인다 */
+function modelSelect(id) {
+  var cur = S.pick && S.models.indexOf(S.pick) >= 0 ? S.pick : "";
+  var ms = h("select", { id: id, "aria-label": "Gemini 모델 선택", title: "503(혼잡)이 나면 다른 모델로 바꿔 다시 분류하세요. 채점 결과에는 쓴 모델 이름이 함께 기록됩니다." });
+  ms.append(h("option", { value: "", text: "기본 (" + (S.defaultModel || "서버 설정") + ")" }));
+  S.models.forEach(function (m) { if (m !== S.defaultModel) ms.append(h("option", { value: m, text: m })); });
+  ms.value = cur;
+  ms.addEventListener("change", function () {
+    S.pick = ms.value; lsSet("npd_model_v1", S.pick); S.model = S.pick || S.defaultModel;
+    renderPills();   // 두 드롭다운을 새 값으로 다시 그린다
+    toast(S.pick ? "모델을 " + S.pick + "로 바꿨습니다." : "기본 모델로 돌아갔습니다.");
+  });
+  return ms;
+}
+function fillModelSlot() {   // 분류하기 버튼 옆 자리
+  var slot = $("#model-slot"); if (!slot) return;
+  slot.textContent = "";
+  if (S.models.length) slot.append(h("label", { class: "lbl-inline", for: "model-pick2", text: "모델" }), modelSelect("model-pick2"));
 }
 
 /* ===================== 화면: 분류하기 ===================== */
@@ -716,9 +732,10 @@ function renderClassify() {
     h("h2", { text: "안건 문장 분류" }),
     h("label", { class: "lbl", for: "txt" }, "분류할 문장 (한 번에 한 문장, 실제 회사 정보는 넣지 마세요)"),
     ta,
-    h("div", { class: "row mt" }, ex, go),
+    h("div", { class: "row mt" }, ex, go, h("span", { id: "model-slot", class: "model-slot" })),
     h("div", { id: "status", class: "hint mt", "aria-live": "polite" }),
     h("div", { id: "result" })));
+  fillModelSlot();
   if (S.pending) renderResult();
 }
 async function doClassify() {
