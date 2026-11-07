@@ -3,64 +3,1111 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>NPD 안건 분류기 (규칙 기준선)</title>
+<title>NPD 안건 분류기</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nanum+Gothic:wght@400;700;800&display=swap">
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Nanum+Gothic:wght@400;700;800&display=swap">
+<style>
+/* Layout: 한 장짜리 업무 도구. 상단 제목줄 + 탭, 아래에 작업 영역. 목록은 긴급도 우선 정렬. */
+:root {
+  --bg: #F3F5F9;
+  --surface: #FFFFFF;
+  --surface-2: #E7EBF3;
+  --ink: #101828;
+  --muted: #475467;
+  --line: #D0D7E4;
+  --accent: #1D3F82;
+  --accent-ink: #FFFFFF;
+  --accent-soft: #DEE7F7;
+  --hi: #B42318;
+  --hi-soft: #FDE8E5;
+  --mid: #8A4B00;
+  --mid-soft: #FDEFC7;
+  --lo: #3A4A63;
+  --lo-soft: #E6EAF1;
+  --ok: #17663A;
+  --ok-soft: #E0F2E7;
+  --ck0: #3D6FB6; --ck1: #9B4F96; --ck2: #B8527D; --ck3: #2B8A7E; --ck4: #6B8E23; --ck5: #B5651D; --ck6: #5F6B7A;
+  --font-body: "Nanum Gothic", "NanumGothic", "Malgun Gothic", "Apple SD Gothic Neo", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0E141F; --surface: #151D2B; --surface-2: #1E2838; --ink: #EEF2F8; --muted: #AAB6C8; --line: #2E3A4E;
+    --accent: #6EA8FE; --accent-ink: #07142B; --accent-soft: #1A2B4A;
+    --hi: #FF9E94; --hi-soft: #40211F; --mid: #F5C26B; --mid-soft: #3B2E12; --lo: #9DB6D3; --lo-soft: #1C2A3B; --ok: #7FD6A0; --ok-soft: #16301F;
+    --ck0: #8CB4F0; --ck1: #D79AD3; --ck2: #EE9DBE; --ck3: #6FD0C1; --ck4: #B6D36A; --ck5: #E2A468; --ck6: #A9B5C4;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0E141F; --surface: #151D2B; --surface-2: #1E2838; --ink: #EEF2F8; --muted: #AAB6C8; --line: #2E3A4E;
+  --accent: #6EA8FE; --accent-ink: #07142B; --accent-soft: #1A2B4A;
+  --hi: #FF9E94; --hi-soft: #40211F; --mid: #F5C26B; --mid-soft: #3B2E12; --lo: #9DB6D3; --lo-soft: #1C2A3B; --ok: #7FD6A0; --ok-soft: #16301F;
+  --ck0: #8CB4F0; --ck1: #D79AD3; --ck2: #EE9DBE; --ck3: #6FD0C1; --ck4: #B6D36A; --ck5: #E2A468; --ck6: #A9B5C4;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font-family: var(--font-body); font-size: 15px; line-height: 1.55;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 64px;
+}
+.wrap { max-width: 980px; margin: 0 auto; }
+header.top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 10px 20px; padding-bottom: 14px; }
+h1 { font-size: 24px; line-height: 1.25; margin: 0; font-weight: 600; letter-spacing: -0.01em; text-wrap: balance; }
+.sub { margin: 4px 0 0; color: var(--muted); font-size: 13.5px; }
+.pills { display: flex; flex-wrap: wrap; gap: 6px; }
+.pill { font-size: 12px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); }
+.pill b { color: var(--ink); font-weight: 500; }
+.pill.warn { border-color: var(--mid); color: var(--mid); background: var(--mid-soft); }
+nav.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); overflow-x: auto; }
+nav.tabs a { padding: 10px 14px; text-decoration: none; color: var(--muted); font-weight: 500; border-bottom: 2px solid transparent; white-space: nowrap; margin-bottom: -1px; }
+nav.tabs a:hover { color: var(--ink); }
+nav.tabs a[aria-current="page"] { color: var(--accent); border-bottom-color: var(--accent); }
+a:focus-visible, button:focus-visible, select:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+main { padding-top: 20px; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 18px; }
+.panel + .panel { margin-top: 16px; }
+h2 { font-size: 17px; margin: 0 0 10px; font-weight: 600; }
+h3 { font-size: 14px; margin: 18px 0 8px; font-weight: 600; }
+p { margin: 0 0 10px; }
+.hint { color: var(--muted); font-size: 13px; }
+label.lbl { display: block; font-size: 13px; font-weight: 500; margin-bottom: 6px; }
+textarea {
+  width: 100%; min-height: 110px; resize: vertical; padding: 10px 12px; font: inherit; color: var(--ink);
+  background: var(--bg); border: 1px solid var(--line); border-radius: 4px;
+}
+select, input[type="search"] {
+  font: inherit; font-size: 14px; color: var(--ink); background: var(--surface); border: 1px solid var(--line);
+  border-radius: 4px; padding: 6px 8px; max-width: 100%;
+}
+.btn {
+  font: inherit; font-weight: 500; font-size: 14px; padding: 8px 16px; border-radius: 4px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+}
+.btn:hover { background: var(--surface-2); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn.primary:hover { filter: brightness(1.08); }
+.btn.danger { color: var(--hi); border-color: var(--hi); }
+.btn.sm { padding: 3px 10px; font-size: 12.5px; }
+.btn:disabled { opacity: .55; cursor: not-allowed; }
+.row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.row.end { justify-content: flex-end; }
+.mt { margin-top: 12px; }
+/* 분류 결과 */
+.result { margin-top: 16px; border-top: 1px dashed var(--line); padding-top: 16px; }
+.fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.fields select { width: 100%; }
+.why { margin-top: 12px; padding: 10px 12px; background: var(--surface-2); border-radius: 4px; font-size: 14px; }
+.notice { margin-top: 12px; padding: 10px 12px; border: 1px solid var(--mid); background: var(--mid-soft); color: var(--mid); border-radius: 4px; font-size: 14px; }
+.notice.info { border-color: var(--lo); background: var(--lo-soft); color: var(--lo); }
+/* 칩 */
+.chip { display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; padding: 1px 8px; border-radius: 3px; border: 1px solid var(--line); background: var(--surface-2); white-space: nowrap; }
+.chip.urg-높음 { background: var(--hi-soft); color: var(--hi); border-color: var(--hi); font-weight: 600; }
+.chip.urg-보통 { background: var(--mid-soft); color: var(--mid); border-color: transparent; }
+.chip.urg-낮음 { background: var(--lo-soft); color: var(--lo); border-color: transparent; }
+.chip.stat { background: transparent; }
+.chip.stat-추가확인 { border-style: dashed; color: var(--mid); border-color: var(--mid); }
+.chip.stat-완료 { color: var(--ok); }
+/* 요약 */
+.summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 14px; }
+.stat-box { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; }
+.stat-box .n { font-family: var(--font-mono); font-size: 24px; font-weight: 500; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.stat-box .l { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+.stat-box.alert .n { color: var(--hi); }
+.stat-box .n { display: inline-block; padding-bottom: 3px; border-bottom: 3px solid var(--accent); }
+.stat-box.alert .n { border-bottom-color: var(--hi); }
+button.stat-box:hover .n { border-bottom-width: 5px; padding-bottom: 1px; }
+button.stat-box { font: inherit; color: inherit; text-align: left; cursor: pointer; width: 100%; }
+button.stat-box:hover { border-color: var(--accent); }
+button.stat-box:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.stat-box.active { border-color: var(--accent); box-shadow: inset 0 0 0 2px var(--accent); background: var(--accent-soft); }
+.tile-note { margin: -4px 0 10px; }
+.filters { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center; margin-bottom: 12px; }
+.filters label.chk { display: inline-flex; gap: 5px; align-items: center; font-size: 13.5px; }
+.items { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+.item { padding: 12px 14px; border-top: 1px solid var(--line); display: grid; gap: 8px; }
+.item:first-child { border-top: 0; }
+.item.u-높음:not(.done) { box-shadow: inset 3px 0 0 var(--hi); }
+.item.done .txt { color: var(--muted); }
+.item .txt { margin: 0; overflow-wrap: anywhere; }
+.item .meta { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; font-size: 12.5px; color: var(--muted); }
+.item-top { display: flex; gap: 12px; align-items: flex-start; }
+.item-main { flex: 1; min-width: 0; display: grid; gap: 8px; }
+.item-side { flex: none; }
+.item.editing { background: var(--surface-2); }
+.editor { border-top: 1px dashed var(--line); padding-top: 12px; display: grid; gap: 12px; }
+.ed-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.ed-field label { display: block; font-size: 12.5px; color: var(--muted); margin-bottom: 4px; }
+.ed-field select { width: 100%; font-size: 14px; padding: 6px 8px; }
+.ed-field.wide input { width: 100%; font: inherit; font-size: 14px; padding: 7px 9px; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 4px; }
+.ed-note { font-size: 12.5px; color: var(--muted); margin-top: 4px; }
+.chip.owner { background: var(--accent-soft); border-color: transparent; }
+.chip.owner.none { background: transparent; border: 1px dashed var(--line); color: var(--muted); }
+.adv { border: 1px solid var(--line); border-radius: 6px; background: var(--surface); margin-bottom: 12px; }
+.adv > summary { cursor: pointer; padding: 10px 14px; font-weight: 600; list-style: none; display: flex; align-items: center; gap: 8px; }
+.adv > summary::-webkit-details-marker { display: none; }
+.adv > summary::before { content: "▸"; color: var(--muted); }
+.adv[open] > summary::before { content: "▾"; }
+.adv > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.adv-n { font-size: 12.5px; font-weight: 500; color: var(--accent); background: var(--accent-soft); padding: 1px 9px; border-radius: 999px; }
+.adv > .filters { padding: 0 14px 12px; margin: 0; }
+.ed-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.ed-actions .grow { flex: 1; }
+@media (max-width: 560px) { .ed-grid { grid-template-columns: 1fr; } }
+.mono { font-family: var(--font-mono); font-size: 12px; }
+.empty { padding: 28px 16px; text-align: center; color: var(--muted); }
+/* 기준 표 */
+.tbl-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 12.5px; color: var(--muted); font-weight: 500; white-space: nowrap; }
+td.k { white-space: nowrap; font-weight: 500; }
+ol.order { margin: 6px 0 0; padding-left: 20px; }
+/* 점검 */
+.meters { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin: 14px 0; }
+.meter .top { display: flex; justify-content: space-between; font-size: 13.5px; }
+.meter .bar { position: relative; height: 10px; background: var(--surface-2); border-radius: 2px; margin-top: 6px; }
+.meter .fill { position: absolute; inset: 0 auto 0 0; background: var(--accent); border-radius: 2px; }
+.meter .goal { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--ink); }
+.meter .num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.diff { padding: 10px 0; border-top: 1px solid var(--line); }
+.diff:first-child { border-top: 0; }
+.diff .pair { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; margin-top: 4px; }
+.diff .pair span.me { color: var(--ok); }
+.diff .pair span.ai { color: var(--hi); }
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(18px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--bg); padding: 9px 16px; border-radius: 4px; font-size: 14px; max-width: calc(100vw - 32px); z-index: 20; }
+@media (max-width: 640px) {
+  .fields { grid-template-columns: 1fr; }
+  h1 { font-size: 21px; }
+  .panel { padding: 14px; }
+}
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+
+/* ===== A 디자인: 차분한 카드형 + 표 보기 ===== */
+body { font-size: 16px; line-height: 1.7; word-break: keep-all; overflow-wrap: break-word; }
+h1 { font-size: 27px; font-weight: 800; letter-spacing: -0.02em; }
+h2 { font-size: 20px; font-weight: 800; }
+h3 { font-size: 16.5px; font-weight: 800; }
+.sub { font-size: 15px; }
+nav.tabs a { font-size: 16px; font-weight: 700; padding: 11px 16px; }
+.panel { border-radius: 12px; }
+.hint { font-size: 14.5px; }
+.btn { font-weight: 700; border-radius: 8px; min-height: 40px; }
+.btn.sm { min-height: 36px; font-size: 14.5px; padding: 3px 14px; }
+.btn.ghost { border-color: transparent; background: transparent; color: var(--accent); }
+.btn.ghost:hover { background: var(--accent-soft); }
+.btn.ghost:disabled { color: var(--muted); background: transparent; }
+.btn.edit::before { content: "✎ "; }
+.summary { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 16px; }
+.stat-box { position: relative; overflow: hidden; border-radius: 12px; border-width: 1.5px; padding: 18px 18px 14px; }
+.stat-box::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 5px; background: var(--c, var(--accent)); }
+.stat-box.k-decide { --c: var(--lo); } .stat-box.k-urgent { --c: var(--hi); } .stat-box.k-check { --c: var(--mid); }
+.stat-box .n { font-family: var(--font-body); font-size: 36px; font-weight: 800; line-height: 1.15; border-bottom: 4px solid var(--c, var(--accent)); padding-bottom: 2px; }
+button.stat-box:hover .n { border-bottom-width: 4px; padding-bottom: 2px; }
+.stat-box.alert .n { color: var(--hi); border-bottom-color: var(--hi); }
+.stat-box .l { font-size: 14.5px; font-weight: 700; margin-top: 8px; }
+.stat-box .go { position: absolute; right: 14px; bottom: 12px; font-size: 22px; color: var(--muted); }
+.stat-box.active { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft), 0 0 0 5px var(--accent); background: var(--surface); }
+.a-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; background: var(--surface); border: 1.5px solid var(--line); border-radius: 12px; padding: 10px 12px; margin-bottom: 12px; }
+.adv-btn { display: inline-flex; align-items: center; gap: 8px; font: inherit; font-weight: 800; font-size: 15.5px; border: 1.5px solid var(--accent); color: var(--accent); background: var(--accent-soft); padding: 7px 14px; border-radius: 999px; cursor: pointer; }
+.adv-btn em { font-style: normal; font-size: 13px; background: var(--accent); color: var(--accent-ink); padding: 0 8px; border-radius: 999px; }
+.a-bar input[type="search"] { flex: 1; min-width: 170px; font-size: 15.5px; padding: 8px 14px; border-radius: 999px; border: 1.5px solid var(--line); background: var(--bg); }
+.a-bar .cnt { margin-left: auto; font-size: 14.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.seg { display: inline-flex; border: 1.5px solid var(--line); border-radius: 999px; overflow: hidden; }
+.seg-btn { font: inherit; font-weight: 700; font-size: 14.5px; padding: 6px 14px; border: 0; background: var(--surface); color: var(--muted); cursor: pointer; }
+.seg-btn.on { background: var(--accent); color: var(--accent-ink); }
+.seg-btn:focus-visible, .adv-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.adv-panel { display: flex; flex-wrap: wrap; gap: 10px 12px; align-items: center; background: var(--surface); border: 1.5px dashed var(--line); border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; }
+.adv-panel[hidden] { display: none; }
+.adv-panel select { font-size: 15px; }
+.adv-panel label.chk { display: inline-flex; gap: 6px; align-items: center; font-size: 15px; }
+.items { border: 0; background: transparent; gap: 12px; }
+.items .empty { background: var(--surface); border: 1.5px dashed var(--line); border-radius: 12px; }
+.item { position: relative; background: var(--surface); border: 1.5px solid var(--line); border-radius: 12px; padding: 14px 16px 14px 20px; }
+.item:first-child { border-top: 1.5px solid var(--line); }
+.item::before { content: ""; position: absolute; left: 0; top: 10px; bottom: 10px; width: 5px; border-radius: 0 5px 5px 0; background: var(--bar, var(--line)); }
+.item.u-높음 { --bar: var(--hi); } .item.u-보통 { --bar: var(--mid); } .item.u-낮음 { --bar: var(--lo); }
+.item.u-높음:not(.done) { box-shadow: none; }
+.item.done { opacity: .75; }
+.item.done .txt { color: var(--muted); }
+.item .txt { font-size: 17px; font-weight: 700; line-height: 1.55; }
+.item .meta { gap: 8px; font-size: 14px; }
+.item .meta .mono { margin-left: auto; font-size: 13px; }
+.item.editing { background: var(--surface-2); }
+.chip { border-radius: 6px; font-size: 14px; padding: 1px 10px; line-height: 1.65; }
+.chip.urg-높음 { border-color: transparent; font-weight: 800; }
+.chip.stat { border: 1.5px solid var(--line); background: var(--surface); }
+.chip.stat-추가확인 { border-style: dashed; border-color: var(--mid); }
+.who { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; }
+.who b { width: 22px; height: 22px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-size: 12px; display: inline-grid; place-items: center; font-weight: 800; }
+.who.none { color: var(--muted); border: 1.5px dashed var(--line); border-radius: 6px; padding: 0 9px; }
+.c-wrap { overflow-x: auto; background: var(--surface); border: 1.5px solid var(--line); border-radius: 12px; }
+.c-tab { width: 100%; border-collapse: collapse; min-width: 780px; }
+.c-tab th { text-align: left; font-size: 14px; color: var(--muted); font-weight: 800; padding: 12px 14px; background: var(--surface-2); border-bottom: 1.5px solid var(--line); white-space: nowrap; }
+.c-tab td { padding: 12px 14px; border-bottom: 1px solid var(--line); vertical-align: middle; font-size: 15.5px; }
+.c-tab tbody tr:last-child td { border-bottom: 0; }
+.c-tab tbody tr:not(.edit-row):hover { background: var(--accent-soft); }
+.c-tab td.t { font-weight: 700; min-width: 280px; overflow-wrap: anywhere; }
+.c-tab .tflags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; font-weight: 400; }
+.c-tab tr.done td { color: var(--muted); }
+.c-tab tr.editing td { background: var(--surface-2); }
+.c-tab tr.edit-row td { background: var(--surface-2); padding-top: 4px; }
+.c-urg { display: inline-flex; align-items: center; gap: 8px; font-weight: 800; white-space: nowrap; }
+.c-urg i { width: 12px; height: 12px; border-radius: 50%; background: var(--d); display: inline-block; }
+.c-urg.h { --d: var(--hi); color: var(--hi); } .c-urg.m { --d: var(--mid); color: var(--mid); } .c-urg.l { --d: var(--lo); color: var(--lo); }
+.btn, .who, .chip, .seg-btn, .adv-btn { white-space: nowrap; }
+.c-tab td:last-child { width: 1%; }
+@media (max-width: 560px) {
+  .summary { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .stat-box { padding: 14px 12px 10px; }
+  .stat-box .n { font-size: 30px; }
+  .stat-box .l { font-size: 13.5px; }
+  .stat-box .go { display: none; }
+  .a-bar { gap: 8px; padding: 8px 10px; }
+  .a-bar .cnt { margin-left: 0; }
+  .summary .stat-box:last-child:nth-child(odd) { grid-column: 1 / -1; }
+}
+/* 5번째 타일(완료) */
+.summary { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
+.stat-box.k-done { --c: var(--ok); }
+/* 구분 · 담당자 · 처리상태를 같은 크기로 */
+.item .meta .eq { width: 11.5em; justify-content: center; text-align: center; }
+.c-tab td .eq { display: flex; width: 100%; justify-content: center; text-align: center; }
+.c-tab { min-width: 890px; }
+.c-tab th:nth-child(3), .c-tab th:nth-child(4), .c-tab th:nth-child(5) { width: 158px; text-align: center; padding-left: 8px; padding-right: 8px; }
+.c-tab td:nth-child(3), .c-tab td:nth-child(4), .c-tab td:nth-child(5) { width: 158px; padding-left: 8px; padding-right: 8px; }
+.who.none.eq { display: flex; }
+.eq { box-sizing: border-box; height: 30px; align-items: center; overflow: hidden; }
+.item .meta .eq { display: inline-flex; }
+.c-tab { table-layout: fixed; }
+.c-tab th:nth-child(1), .c-tab td:nth-child(1) { width: 88px; }
+.c-tab th:nth-child(6), .c-tab td:nth-child(6) { width: 104px; }
+.c-tab td .eq { max-width: 100%; }
+.who .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.chip.eq { text-overflow: ellipsis; }
+.ed-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.ed-field select, .ed-field input { width: 100%; height: 42px; font: inherit; font-size: 14.5px; padding: 0 10px; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 6px; }
+.ed-field label { font-size: 13.5px; font-weight: 700; }
+.ed-note { margin-top: -2px; }
+@media (max-width: 760px) { .ed-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 480px) { .ed-grid { grid-template-columns: 1fr; } }
+/* 탭 줄 오른쪽 전체 건수, 스크롤 표시 제거, 업데이트 버튼 */
+nav.tabs { overflow-y: hidden; align-items: center; }
+.tab-total { margin-left: auto; white-space: nowrap; font-size: 14.5px; font-weight: 700; color: var(--muted); background: var(--surface); border: 1.5px solid var(--line); border-radius: 999px; padding: 2px 14px; }
+.tab-total b { color: var(--accent); font-size: 17px; font-weight: 800; margin: 0 2px; font-variant-numeric: tabular-nums; }
+.btn.upd { border-color: var(--accent); color: var(--accent); background: var(--surface); }
+.btn.upd:hover { background: var(--accent-soft); }
+.btn.upd:disabled { opacity: .7; }
+@media (max-width: 560px) {
+  nav.tabs { flex-wrap: wrap; overflow-x: visible; }
+  nav.tabs a { padding: 10px 10px; }
+  .tab-total { margin-left: auto; margin-bottom: 4px; }
+}
+/* 구분 B: 색 채운 칩 */
+.chip.cat { background: color-mix(in srgb, var(--c, var(--ck6)) 17%, var(--surface)); border: 1.5px solid color-mix(in srgb, var(--c, var(--ck6)) 45%, var(--surface)); color: var(--ink); font-weight: 700; }
+.ck0 { --c: var(--ck0); } .ck1 { --c: var(--ck1); } .ck2 { --c: var(--ck2); } .ck3 { --c: var(--ck3); } .ck4 { --c: var(--ck4); } .ck5 { --c: var(--ck5); } .ck6 { --c: var(--ck6); }
+button.chip.cat { font: inherit; font-weight: 700; font-size: 14px; cursor: pointer; }
+button.chip.cat:hover { filter: brightness(.96); }
+/* 처리상태 B: 단계 점 */
+.st2 { display: inline-flex; align-items: center; justify-content: center; gap: 9px; white-space: nowrap; border: 1.5px solid var(--line); border-radius: 999px; background: var(--surface); padding: 0 12px; }
+.st2 b { font-size: 14px; color: var(--sfg); font-weight: 800; }
+.st2 .dots { display: inline-flex; gap: 4px; }
+.st2 .dots i { width: 10px; height: 10px; border-radius: 50%; background: var(--line); display: inline-block; }
+.st2 .dots i.on { background: var(--sdot); }
+.st2.s0 { --sdot: var(--muted); --sfg: var(--muted); } .st2.s1 { --sdot: var(--lo); --sfg: var(--lo); }
+.st2.s2 { --sdot: var(--mid); --sfg: var(--mid); } .st2.s3 { --sdot: var(--ok); --sfg: var(--ok); }
+.item .meta .st2.eq { display: inline-flex; }
+.c-tab td .st2.eq { display: flex; }
+/* 전체 N건 현황 (구분별 숫자) */
+button.tab-total { font-family: inherit; cursor: pointer; }
+button.tab-total:hover { border-color: var(--accent); }
+button.tab-total[aria-expanded="true"] { border-color: var(--accent); background: var(--accent-soft); }
+button.tab-total:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.tab-total .caret { color: var(--muted); font-size: 12px; }
+.status-panel { background: var(--surface); border: 1.5px solid var(--accent); border-radius: 12px; padding: 14px 16px; margin: 14px 0 0; }
+.status-panel[hidden] { display: none; }
+.sp-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
+.sp-head h3 { margin: 0; font-size: 17px; font-weight: 800; }
+.status-panel .ntab { width: 100%; border-collapse: collapse; min-width: 560px; }
+.status-panel .ntab th { white-space: nowrap; }
+.status-panel .ntab th.num, .status-panel .ntab td.num { text-align: center; font-variant-numeric: tabular-nums; font-weight: 700; padding-left: 8px; padding-right: 8px; }
+.status-panel .ntab td.done { color: var(--ok); background: var(--ok-soft); font-weight: 800; }
+.status-panel .ntab td.sum { font-weight: 800; }
+.status-panel .ntab td.open { color: var(--accent); font-weight: 800; }
+.status-panel .ntab tr.foot th, .status-panel .ntab tr.foot td { border-top: 2px solid var(--line); font-weight: 800; background: var(--surface-2); }
+/* 도구줄: 테두리 없이 글자만 */
+.adv-btn, .btn.upd, .btn.ghost, .seg-btn { border: 0; background: transparent; box-shadow: none; border-radius: 6px; padding: 6px 8px; min-height: 36px; }
+.adv-btn { color: var(--accent); }
+.adv-btn[aria-expanded="true"], .seg-btn.on { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 7px; }
+.adv-btn:hover, .btn.upd:hover, .btn.ghost:not(:disabled):hover, .seg-btn:hover { background: transparent; text-decoration: underline; text-underline-offset: 7px; }
+.btn.upd { color: var(--accent); }
+.btn.upd:disabled { color: var(--muted); }
+.seg { border: 0; border-radius: 0; overflow: visible; gap: 2px; }
+.seg-btn { color: var(--muted); font-weight: 700; }
+.seg-btn.on { background: transparent; color: var(--accent); font-weight: 800; }
+.a-bar input[type="search"] { border: 0; background: var(--surface-2); }
+.a-bar input[type="search"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.a-bar .btn.ghost { margin-left: 4px; }
+/* 표 안 내용: 테두리 없이 */
+.c-tab td .who, .c-tab td .st2, .c-tab td .chip, .c-tab td .btn { border: 0; box-shadow: none; }
+.c-tab td .st2, .c-tab td .chip.stat { background: transparent; }
+.c-tab td .btn.edit { background: transparent; color: var(--accent); }
+.c-tab td .btn.edit:not(:disabled):hover { background: transparent; text-decoration: underline; text-underline-offset: 5px; }
+.c-tab td .btn.edit:disabled { color: var(--muted); }
+/* 구분 칩: 테두리 없이 색 채움만 (카드·표·현황 표 모두) */
+.chip.cat { border: 0; }
+/* 수정 글자 작게 (표·카드) */
+.c-tab td .btn.edit, .item .item-side .btn { font-size: 13px; font-weight: 700; }
+.c-tab td .btn.edit { min-height: 30px; padding: 2px 8px; }
+.item .item-side .btn { min-height: 32px; padding: 2px 12px; }
+/* 수정: 연필만 (글자 없음, 화면 낭독기에는 '수정'으로 읽힘) */
+.btn.edit.icon::before { content: "✎"; }
+.btn.edit.icon { font-size: 18px; line-height: 1; min-width: 36px; min-height: 32px; padding: 4px 8px; }
+.c-tab td .btn.edit.icon { font-size: 18px; }
+/* 표: 연필 칸을 좁게 끝쪽으로, 남는 폭은 안건 칸으로 */
+.c-tab th:nth-child(6), .c-tab td:nth-child(6) { width: 46px; padding-left: 0; padding-right: 6px; text-align: right; }
+.c-tab td:nth-child(6) .btn.edit.icon { min-width: 32px; padding: 4px 6px; }
+.c-tab { min-width: 830px; }
+/* 상세검색: 조금 작게 */
+.adv-btn { font-size: 14px; gap: 6px; padding: 4px 6px; min-height: 32px; }
+.adv-btn em { font-size: 12px; padding: 0 7px; }
+.adv-panel { padding: 8px 12px; gap: 8px 10px; }
+.adv-panel select { font-size: 14px; padding: 4px 6px; }
+.adv-panel label.chk { font-size: 14px; }
+/* 상세검색 항목 글자 톤 통일: 모두 14px · 굵게 · 회색, 선택/열림/마우스 올림만 남색 */
+.a-bar .adv-btn, .a-bar .btn.ghost, .a-bar .btn.upd, .a-bar .seg-btn { font-size: 14px; font-weight: 700; color: var(--muted); }
+.a-bar .adv-btn[aria-expanded="true"], .a-bar .seg-btn.on { color: var(--accent); }
+.a-bar .adv-btn:hover, .a-bar .btn.upd:not(:disabled):hover, .a-bar .btn.ghost:not(:disabled):hover, .a-bar .seg-btn:hover { color: var(--accent); }
+.a-bar .btn.ghost:disabled { opacity: .55; }
+.a-bar input[type="search"] { font-size: 14px; }
+.adv-panel select, .adv-panel label.chk { font-size: 14px; font-weight: 700; color: var(--muted); }
+.adv-panel select { border: 0; background: var(--surface-2); border-radius: 8px; height: 34px; padding: 0 8px; }
+.adv-panel label.chk input { accent-color: var(--accent); }
+/* 상세검색 안: 흰색이 튀지 않게 바탕을 한 가지 색으로 */
+.adv-panel { background: var(--surface-2); border: 0; }
+.adv-panel select { background: var(--surface-2); }
+.adv-panel label.chk input { appearance: none; -webkit-appearance: none; margin: 0; width: 16px; height: 16px; border: 1.5px solid var(--muted); border-radius: 4px; background: transparent; display: inline-grid; place-content: center; cursor: pointer; }
+.adv-panel label.chk input:checked { background: var(--accent); border-color: var(--accent); }
+.adv-panel label.chk input:checked::after { content: "✓"; color: var(--accent-ink); font-size: 12px; line-height: 1; font-weight: 800; }
+/* 연필(수정): 회색 */
+.btn.edit.icon, .c-tab td .btn.edit, .item .item-side .btn.edit.icon { color: var(--muted); }
+.btn.edit.icon:not(:disabled):hover { color: var(--accent); }
+/* 처리 단계별 색 (신규 파랑 · 검토중 청록 · 결정대기 앰버 · 완료 초록 · 추가확인 자주) */
+:root { --st0: #2457A6; --st1: #0E7490; --st2: #9A5B00; --st3: #17663A; --st4: #8E3B8E; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --st0: #8CB4F0; --st1: #67D3E6; --st2: #F5C26B; --st3: #7FD6A0; --st4: #E3A3E3; } }
+:root[data-theme="dark"] { --st0: #8CB4F0; --st1: #67D3E6; --st2: #F5C26B; --st3: #7FD6A0; --st4: #E3A3E3; }
+.st2.s0 { --sdot: var(--st0); --sfg: var(--st0); }
+.st2.s1 { --sdot: var(--st1); --sfg: var(--st1); }
+.st2.s2 { --sdot: var(--st2); --sfg: var(--st2); }
+.st2.s3 { --sdot: var(--st3); --sfg: var(--st3); }
+.chip.stat-추가확인 { color: var(--st4); border-color: var(--st4); }
+.chip.stat.eq.stat-추가확인 { font-weight: 800; }
+.st2 .dots i { background: color-mix(in srgb, var(--sdot) 22%, var(--surface)); }
+.st2 .dots i.on { background: var(--sdot); }
+/* 숫자 타일 색도 단계 색에 맞춤 */
+.stat-box.k-decide { --c: var(--st2); }
+.stat-box.k-check { --c: var(--st4); }
+/* 현황 표 머리글도 단계 색으로 (신규·검토중·결정대기·추가확인·완료) */
+.status-panel .ntab thead th:nth-child(2) { color: var(--st0); }
+.status-panel .ntab thead th:nth-child(3) { color: var(--st1); }
+.status-panel .ntab thead th:nth-child(4) { color: var(--st2); }
+.status-panel .ntab thead th:nth-child(5) { color: var(--st4); }
+.status-panel .ntab thead th:nth-child(6) { color: var(--st3); }
+/* 배경: 항상 다크 네이비 (시스템이 밝은 모드여도 같은 색) */
+:root, :root[data-theme="light"], :root[data-theme="dark"] {
+  --bg: #0E141F; --surface: #151D2B; --surface-2: #1E2838; --ink: #EEF2F8; --muted: #AAB6C8; --line: #2E3A4E;
+  --accent: #6EA8FE; --accent-ink: #07142B; --accent-soft: #1A2B4A;
+  --hi: #FF9E94; --hi-soft: #40211F; --mid: #F5C26B; --mid-soft: #3B2E12; --lo: #9DB6D3; --lo-soft: #1C2A3B; --ok: #7FD6A0; --ok-soft: #16301F;
+  --ck0: #8CB4F0; --ck1: #D79AD3; --ck2: #EE9DBE; --ck3: #6FD0C1; --ck4: #B6D36A; --ck5: #E2A468; --ck6: #A9B5C4;
+  --st0: #8CB4F0; --st1: #67D3E6; --st2: #F5C26B; --st3: #7FD6A0; --st4: #E3A3E3;
+  color-scheme: dark;
+}
+/* 밝은 화면 (☀ 밝게를 눌렀을 때): 네이비 + 앰버 */
+:root.t-light, :root.t-light[data-theme] {
+  --bg: #F3F5F9; --surface: #FFFFFF; --surface-2: #E7EBF3; --ink: #101828; --muted: #475467; --line: #D0D7E4;
+  --accent: #1D3F82; --accent-ink: #FFFFFF; --accent-soft: #DEE7F7;
+  --hi: #B42318; --hi-soft: #FDE8E5; --mid: #8A4B00; --mid-soft: #FDEFC7; --lo: #3A4A63; --lo-soft: #E6EAF1; --ok: #17663A; --ok-soft: #E0F2E7;
+  --ck0: #3D6FB6; --ck1: #9B4F96; --ck2: #B8527D; --ck3: #2B8A7E; --ck4: #6B8E23; --ck5: #B5651D; --ck6: #5F6B7A;
+  --st0: #2457A6; --st1: #0E7490; --st2: #9A5B00; --st3: #17663A; --st4: #8E3B8E;
+  color-scheme: light;
+}
+/* 맨 위 전환 버튼 */
+.topbar { display: flex; justify-content: flex-end; margin: -6px 0 8px; }
+.theme-seg { display: inline-flex; border: 1.5px solid var(--line); border-radius: 999px; overflow: hidden; background: var(--surface); }
+.theme-seg button { font: inherit; font-size: 13px; font-weight: 700; padding: 4px 12px; border: 0; background: transparent; color: var(--muted); cursor: pointer; white-space: nowrap; }
+.theme-seg button.on { background: var(--accent); color: var(--accent-ink); }
+.theme-seg button:not(.on):hover { color: var(--accent); }
+.theme-seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+/* Vercel 버전 추가 */
+#tabs a.ext { margin-left: 4px; }
+.team-code { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin: 14px 0 0; padding: 12px 14px; border: 1.5px solid var(--mid); background: var(--mid-soft); border-radius: 12px; }
+.team-code[hidden] { display: none; }
+.team-code .tc-msg { color: var(--mid); font-weight: 700; font-size: 14px; }
+.team-code input { font: inherit; font-size: 14px; padding: 6px 10px; border-radius: 8px; border: 1.5px solid var(--line); background: var(--surface); color: var(--ink); }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.result h3 { display: flex; align-items: center; gap: 8px; }
+.result .fields input { width: 100%; font: inherit; font-size: 14px; padding: 6px 8px; border-radius: 4px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+@media (min-width: 761px) { .fields { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+</style>
+
 </head>
 <body>
 <div class="wrap">
-  <header>
-    <h1>NPD 안건 분류기</h1>
-    <p class="sub">Gemini AI가 분류하고, AI가 실패하면 규칙이 대신 분류합니다.</p>
-  </header>
-
-  <div id="load-note" class="load-note" role="alert" hidden></div>
-
-  <nav class="tabs" role="tablist" aria-label="화면 선택">
-    <a id="tab-classify" href="#classify" role="tab" aria-selected="true">NPD 안건 분류</a>
-    <a id="tab-dashboard" href="#dashboard" role="tab" aria-selected="false">업무 진행 대시보드</a>
-    <a id="tab-grade" href="#grade" role="tab" aria-selected="false">규칙 정확도 채점</a>
-  </nav>
-
-  <main>
-    <section id="view-classify" class="split" role="tabpanel" aria-labelledby="tab-classify">
-    <div class="panel" id="classify-main">
-      <label class="lbl" for="txt">안건 또는 미해결 이슈 (한 줄)</label>
-      <textarea id="txt" maxlength="500" placeholder="예: 인체적용시험 중간 결과 나왔는데 1차 지표 유의성이 애매함. 통계팀 재분석중."></textarea>
-      <div class="row">
-        <button id="ex" class="btn" type="button">예시 문장 입력하기</button>
-        <button id="go" class="btn primary" type="button">분류하기</button>
-      </div>
-      <div id="status" class="hint" role="status" aria-live="polite"></div>
-      <div id="result" class="result" hidden></div>
-      <p class="foot">입력한 문장과 분류 결과는 저장하지 않습니다. 이름·전화번호·사번·이메일은 브라우저에서 가린 뒤 그 문장만 AI 서버로 보냅니다. 이름은 직급이 붙은 경우만 가려집니다.</p>
+  <div class="topbar"><div class="theme-seg" role="group" aria-label="화면 밝기"><button type="button" data-t="dark" aria-pressed="true">☾ 다크</button><button type="button" data-t="light" aria-pressed="false">☀ 밝게</button></div></div>
+  <header class="top">
+    <div>
+      <h1>NPD 안건 분류기</h1>
+      <p class="sub">안건 문장을 넣으면 Gemini AI가 칸·긴급도·이유 한 줄을 제안하고(AI가 실패하면 규칙이 대신), 확인한 결과를 팀 목록에 모읍니다.</p>
     </div>
-    <aside class="panel side" id="classify-side" aria-labelledby="edit-title">
-      <h2 id="edit-title">분류 수정</h2>
-      <div id="edit-body"><p class="hint">기준 파일을 읽는 중입니다.</p></div>
-    </aside>
-    </section>
-
-    <section id="view-dashboard" class="panel" role="tabpanel" aria-labelledby="tab-dashboard" hidden>
-      <p class="hint">기준 파일을 읽는 중입니다.</p>
-    </section>
-
-    <section id="view-grade" class="panel" role="tabpanel" aria-labelledby="tab-grade" hidden>
-      <p class="hint">팀장님이 정한 정답 30건과 규칙·AI의 판정을 견줍니다. 「AI로 채점」은 규칙 채점도 함께 해서 같은 30건으로 나란히 비교하고, AI에는 문장을 10개씩 3번 보냅니다.</p>
-      <div class="row">
-        <button id="grade-btn" class="btn" type="button">규칙으로 채점</button>
-        <button id="ai-grade-btn" class="btn primary" type="button">AI로 채점</button>
-        <button id="dl-btn" class="btn" type="button" hidden>AI 채점 결과 내려받기</button>
-      </div>
-      <div id="grade-status" class="hint" role="status" aria-live="polite"></div>
-      <div id="grade-out" hidden></div>
-    </section>
+    <div class="pills" id="pills" aria-live="polite"></div>
+  </header>
+  <nav class="tabs" id="tabs" aria-label="화면 선택">
+    <a href="#classify" data-tab="classify">분류하기</a>
+    <a href="#list" data-tab="list">팀 목록</a>
+    <a href="#rules" data-tab="rules">분류 기준</a>
+    <a href="grade.html#grade" id="tab-eval" class="ext" title="규칙·Gemini 정확도 채점 화면으로 이동">정확도 점검 ↗</a>
+    <button type="button" id="tab-total" class="tab-total" aria-expanded="false" aria-controls="status-panel" title="눌러서 구분별 현황(완료 포함) 보기"></button>
+  </nav>
+  <div id="status-panel" class="status-panel" hidden></div>
+  <div id="team-code" class="team-code" hidden></div>
+  <main>
+    <section id="view-classify" hidden></section>
+    <section id="view-list" hidden></section>
+    <section id="view-rules" hidden></section>
   </main>
 </div>
+<div class="toast" id="toast" role="status" hidden></div>
+
 <script src="mask.js"></script>
 <script src="rules.js"></script>
-<script src="app.js"></script>
+<script>
+"use strict";
+/* ===================== 분류 기준: criteria.json · status.json 에서 읽는다 ===================== */
+var CRITERIA = null, KEYWORDS = null;
+var CATS = [], URGS = [], STATS = [], CAT_KEYS = [], URG_KEYS = [], STAT_KEYS = [], SYM = {}, URG_RANK = {};
+var STAGE_SYMS = ["○", "◐", "◆", "✓"];
+// 추가확인은 처리 단계가 아니라 '사람이 확인할 것' 표시라 status.json 의 4단계 뒤에 붙인다
+var EXTRA_STAT = { k: "추가확인", d: "문장만으로 진행 상황을 알 수 없을 때. 임의로 완료 처리하지 않고 사람이 확인", sym: "?" };
+function setupCriteria(criteria, status, keywords) {
+  CRITERIA = criteria; KEYWORDS = keywords;
+  CATS = criteria["칸"].map(function (c) { return { k: c["이름"], d: c["정의"] }; });
+  URGS = criteria["긴급도"].map(function (u) { return { k: u["이름"], d: u["기준"] }; });
+  STATS = status["처리상태"].map(function (x, i) { return { k: x["이름"], d: x["기준"], sym: STAGE_SYMS[i] || "•" }; }).concat([EXTRA_STAT]);
+  CAT_KEYS = CATS.map(function (c) { return c.k; });
+  URG_KEYS = URGS.map(function (c) { return c.k; });
+  STAT_KEYS = STATS.map(function (c) { return c.k; });
+  SYM = {}; STATS.forEach(function (x) { SYM[x.k] = x.sym; });
+  URG_RANK = {}; URG_KEYS.forEach(function (k, i) { URG_RANK[k] = i; });
+}
+
+/* ===================== 작은 도구 ===================== */
+function $(s, r) { return (r || document).querySelector(s); }
+function h(tag, props) {
+  var e = document.createElement(tag);
+  if (props) Object.keys(props).forEach(function (k) {
+    var v = props[k];
+    if (v == null || v === false) return;
+    if (k === "class") e.className = v;
+    else if (k === "text") e.textContent = v;
+    else if (k === "style") e.style.cssText = v;
+    else if (k.slice(0, 2) === "on") e.addEventListener(k.slice(2), v);
+    else if (v === true) e.setAttribute(k, "");
+    else e.setAttribute(k, v);
+  });
+  for (var i = 2; i < arguments.length; i++) append(e, arguments[i]);
+  return e;
+}
+function append(e, kid) {
+  if (kid == null || kid === false) return;
+  if (Array.isArray(kid)) { kid.forEach(function (x) { append(e, x); }); return; }
+  e.append(kid.nodeType ? kid : document.createTextNode(String(kid)));
+}
+function sel(id, keys, value, onchange, cls) {
+  var s = h("select", { id: id, class: cls || "" });
+  keys.forEach(function (k) { var o = h("option", { value: k, text: k }); if (k === value) o.selected = true; s.append(o); });
+  if (onchange) s.addEventListener("change", onchange);
+  return s;
+}
+var toastTimer = null;
+function toast(msg) {
+  var t = $("#toast"); t.textContent = msg; t.hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.hidden = true; }, 3600);
+}
+function lsGet(key, fallback) { try { var v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; } catch (e) { return fallback; } }
+function lsSet(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); return true; } catch (e) { return false; } }
+function normKey(s) { return String(s == null ? "" : s).replace(/[\s·]/g, ""); }
+function matchKey(val, keys) {
+  var n = normKey(val);
+  for (var i = 0; i < keys.length; i++) if (normKey(keys[i]) === n) return keys[i];
+  if (n === "원가") return "원가·공급";
+  return null;
+}
+function uid8() { return "l" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+
+/* ===================== 화면 밝기 전환 (기본 다크 네이비, 고른 값은 이 브라우저에만 기억) ===================== */
+(function () {
+  var btns = document.querySelectorAll(".theme-seg button");
+  function apply(t) {
+    document.documentElement.classList.toggle("t-light", t === "light");
+    btns.forEach(function (b) { var on = b.getAttribute("data-t") === t; b.classList.toggle("on", on); b.setAttribute("aria-pressed", on ? "true" : "false"); });
+  }
+  var cur = lsGet("npd_theme_v1", "dark") === "light" ? "light" : "dark";
+  apply(cur);
+  btns.forEach(function (b) { b.addEventListener("click", function () { cur = b.getAttribute("data-t"); lsSet("npd_theme_v1", cur); apply(cur); }); });
+})();
+
+/* ===================== 상태 ===================== */
+function ssGet(k) { try { return sessionStorage.getItem(k); } catch (e) { return null; } }
+function ssSet(k, v) { try { sessionStorage.setItem(k, v); } catch (e) {} }
+var S = {
+  store: "checking",          // checking | db(팀 공유) | memory(이 화면만) | locked(팀 코드 필요)
+  storeErr: "",
+  shared: [],                 // 팀 공유 목록 (/api/items)
+  local: [],                  // 공유 저장소가 없을 때: 이 화면을 연 동안만 (브라우저에도 저장하지 않음)
+  aiMode: "unknown", model: null,
+  teamCode: ssGet("npd_team_code") || "",
+  filters: { cat: "", urg: "", stat: "", open: false, check: false, hideSample: false, q: "", sort: "urg" },
+  pending: null, draftText: "",
+  editingId: null, draft: null, tile: null, advOpen: false, statusOpen: false, updatedAt: Date.now(), view: (lsGet("npd_view_v1", "card") === "table" ? "table" : "card"),
+  busy: false
+};
+
+/* ===================== 분류: Gemini(/api/classify) → 안 되면 규칙(rules.js) ===================== */
+function teamHeaders() { var hd = { "Content-Type": "application/json" }; if (S.teamCode) hd["X-Team-Code"] = S.teamCode; return hd; }
+function invalidAI(r) {
+  if (!r) return "판정 없음";
+  if (r.error) return r.error;
+  if (CAT_KEYS.indexOf(r.category) < 0 || URG_KEYS.indexOf(r.urgency) < 0 || !r.reason) return "유효하지 않은 판정";
+  return null;
+}
+async function classifyOne(masked) {
+  var err = null;
+  try {
+    var ctl = new AbortController(), tm = setTimeout(function () { ctl.abort(); }, 75000);
+    var r = await fetch("/api/classify", { method: "POST", headers: teamHeaders(), body: JSON.stringify({ texts: [masked] }), signal: ctl.signal });
+    clearTimeout(tm);
+    var t = await r.text(), j = null;
+    try { j = JSON.parse(t); } catch (e) { /* JSON 아님 */ }
+    if (r.status === 401) { showTeamCode("AI 분류에 팀 코드가 필요합니다."); err = "팀 코드가 필요합니다"; }
+    else if (!r.ok || !j) err = (j && j.error) || ("AI 서버 응답 오류 (HTTP " + r.status + ")");
+    else if (!Array.isArray(j.results) || !j.results.length) err = "AI 서버 응답 형식 오류";
+    else {
+      var a = j.results[0];
+      err = invalidAI(a);
+      if (!err) { S.aiMode = "ai"; S.model = j.model; renderPills(); return { cat: a.category, urg: a.urgency, why: a.reason, mode: "ai" }; }
+    }
+  } catch (e) { err = e && e.name === "AbortError" ? "AI 응답 시간 초과" : "AI 서버에 연결하지 못했습니다"; }
+  var rr = window.NpdRules.classify(masked, CRITERIA, KEYWORDS);   // 어떤 오류가 나도 분류는 멈추지 않는다
+  S.aiMode = "rule"; renderPills();
+  return { cat: rr.category, urg: rr.urgency, why: rr.reason, mode: "rule", error: err };
+}
+
+/* ===================== 팀 공유 목록: /api/items (Upstash). 저장소가 없으면 이 화면을 연 동안만 ===================== */
+async function api(body) {
+  var r = await fetch("/api/items", body
+    ? { method: "POST", headers: teamHeaders(), body: JSON.stringify(body), cache: "no-store" }
+    : { headers: teamHeaders(), cache: "no-store" });
+  var j = null;
+  try { j = await r.json(); } catch (e) { /* JSON 아님 */ }
+  if (r.ok && j) return j;
+  throw { status: r.status, msg: (j && j.error) || ("HTTP " + r.status) };
+}
+function allItems() {
+  return S.store === "db" ? S.shared.slice() : S.local.map(function (x) { return Object.assign({}, x, { loc: true }); });
+}
+async function loadItems() {
+  try {
+    var j = await api(null);
+    S.shared = j.items || []; S.store = "db"; S.storeErr = ""; S.updatedAt = Date.now(); hideTeamCode();
+    return true;
+  } catch (e) {
+    if (e.status === 401) { S.store = "locked"; showTeamCode(); return false; }
+    if (S.store === "db") { S.storeErr = "공유 목록을 새로 불러오지 못했습니다(" + e.msg + ")"; return false; }   // 보던 목록은 그대로 둔다
+    S.store = "memory";
+    S.storeErr = e.status === 503 ? "공유 저장소(DB)가 아직 연결되지 않았습니다" : "공유 저장소에 연결하지 못했습니다";
+    return false;
+  }
+}
+async function addItem(item) {
+  if (S.store === "db") {
+    try { var j = await api({ action: "add", item: item }); S.shared.unshift(j.item); return "shared"; }
+    catch (e) { if (e.status === 401) showTeamCode(); toast("공유 목록에 저장하지 못했습니다: " + e.msg); return "fail"; }
+  }
+  if (S.store === "locked") { toast("팀 코드를 먼저 입력하세요."); return "fail"; }
+  S.local.unshift(Object.assign({ id: "m" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), at: Date.now() }, item));
+  return "local";
+}
+async function updateItem(it, patch) {
+  if (it.loc || S.store !== "db") {
+    var x = S.local.find(function (l) { return l.id === it.id; });
+    if (x) Object.assign(x, patch);
+    renderList(); return true;
+  }
+  try {
+    var j = await api({ action: "update", id: it.id, patch: patch });
+    var i = S.shared.findIndex(function (y) { return y.id === it.id; });
+    if (i >= 0) S.shared[i] = j.item;
+    renderList(); return true;
+  } catch (e) { toast("저장하지 못했습니다: " + e.msg); renderList(); return false; }
+}
+async function removeItem(it) {
+  if (it.loc || S.store !== "db") { S.local = S.local.filter(function (l) { return l.id !== it.id; }); renderList(); return; }
+  try { await api({ action: "delete", id: it.id }); S.shared = S.shared.filter(function (y) { return y.id !== it.id; }); renderList(); }
+  catch (e) { toast("삭제하지 못했습니다: " + e.msg); }
+}
+
+/* ===================== 팀 코드 (서버에 TEAM_CODE 를 걸어 둔 경우에만 나타남) ===================== */
+function showTeamCode(msg) {
+  var p = $("#team-code"); if (!p) return;
+  p.hidden = false; p.textContent = "";
+  var inp = h("input", { type: "password", id: "team-code-in", placeholder: "팀 코드", autocomplete: "off" });
+  async function submit() {
+    S.teamCode = inp.value.trim(); ssSet("npd_team_code", S.teamCode);
+    var ok = await loadItems(); renderPills(); renderList();
+    toast(ok ? "팀 코드를 확인했습니다." : "팀 코드가 맞지 않습니다.");
+  }
+  inp.addEventListener("keydown", function (e) { if (e.key === "Enter") submit(); });
+  p.append(h("span", { class: "tc-msg", text: msg || "이 사이트는 팀 코드가 있어야 팀 목록과 AI 분류를 쓸 수 있습니다." }),
+    h("label", { for: "team-code-in", class: "sr" }, "팀 코드"), inp, h("button", { type: "button", class: "btn sm primary", onclick: submit }, "확인"));
+}
+function hideTeamCode() { var p = $("#team-code"); if (p) p.hidden = true; }
+
+/* ===================== 상단 표시 ===================== */
+function renderPills() {
+  var p = $("#pills"); if (!p) return; p.textContent = "";
+  var ai = S.aiMode === "rule" ? "규칙 (AI 대체)" : "Gemini";
+  p.append(h("span", { class: "pill" + (S.aiMode === "rule" ? " warn" : ""), title: S.model ? "모델 " + S.model : "" }, "분류: ", h("b", { text: ai })));
+  var st = S.store === "db" ? "팀 공유" : S.store === "memory" ? "이 화면만 (공유 안 됨)" : S.store === "locked" ? "팀 코드 필요" : "확인 중";
+  p.append(h("span", { class: "pill" + (S.store === "memory" || S.store === "locked" ? " warn" : ""), title: S.storeErr || "" }, "저장: ", h("b", { text: st })));
+}
+
+/* ===================== 화면: 분류하기 ===================== */
+var exIdx = 0;
+function exampleList() {   // keywords.json 의 연습 문장 예시(data/practice.json 에서 뽑은 것)
+  var seen = {}, out = [];
+  ["칸", "긴급도"].forEach(function (part) {
+    Object.keys(KEYWORDS[part] || {}).forEach(function (k) {
+      (KEYWORDS[part][k]["예시"] || []).forEach(function (e) { if (!seen[e.id]) { seen[e.id] = true; out.push(e); } });
+    });
+  });
+  return out;
+}
+function renderClassify() {
+  var v = $("#view-classify"); v.textContent = "";
+  var ta = h("textarea", { id: "txt", maxlength: "500", placeholder: "예: 인체적용시험 중간 결과 나왔는데 1차 지표 유의성이 애매함. 통계팀 재분석중." });
+  ta.value = S.draftText || "";
+  ta.addEventListener("input", function () { S.draftText = ta.value; });
+  var go = h("button", { class: "btn primary", id: "go", onclick: doClassify }, "분류하기");
+  var ex = h("button", { class: "btn", onclick: function () {
+    var l = exampleList(); if (!l.length) return;
+    var e = l[exIdx++ % l.length]; ta.value = e["문장"]; S.draftText = ta.value; ta.focus();
+    $("#status").textContent = "예시 문장 " + ((exIdx - 1) % l.length + 1) + "/" + l.length + " (연습 문장 " + e.id + ")을 넣었습니다.";
+  } }, "예시 문장 넣기");
+  v.append(h("div", { class: "panel" },
+    h("h2", { text: "안건 문장 분류" }),
+    h("label", { class: "lbl", for: "txt" }, "분류할 문장 (한 번에 한 문장, 실제 회사 정보는 넣지 마세요)"),
+    ta,
+    h("div", { class: "row mt" }, ex, go),
+    h("div", { id: "status", class: "hint mt", "aria-live": "polite" }),
+    h("div", { id: "result" }),
+    h("p", { class: "hint mt", text: "이름·전화번호·사번·이메일은 브라우저에서 가린 뒤에만 AI로 보내고, 팀 목록에도 가린 문장만 저장합니다." })));
+  if (S.pending) renderResult();
+}
+async function doClassify() {
+  var text = ($("#txt").value || "").trim(), status = $("#status");
+  if (!text) { status.textContent = "문장을 먼저 입력하세요."; return; }
+  if (S.busy) return;
+  S.busy = true; $("#go").disabled = true; status.textContent = "분류하는 중입니다.";
+  var masked = window.NpdMask.mask(text);
+  try {
+    var r = await classifyOne(masked);
+    S.pending = { text: masked, cat: r.cat, urg: r.urg, stat: STAT_KEYS[0], owner: "", why: r.why, mode: r.mode, error: r.error,
+                  ai: { cat: r.cat, urg: r.urg, stat: STAT_KEYS[0] } };
+    status.textContent = "";
+    renderResult();
+  } finally { S.busy = false; var g = $("#go"); if (g) g.disabled = false; }
+}
+function renderResult() {
+  var box = $("#result"); if (!box) return; box.textContent = "";
+  var p = S.pending; if (!p) return;
+  var cat = sel("f-cat", CAT_KEYS, p.cat, function (e) { p.cat = e.target.value; });
+  var urg = sel("f-urg", URG_KEYS, p.urg, function (e) { p.urg = e.target.value; });
+  var stt = sel("f-stat", STAT_KEYS, p.stat, function (e) { p.stat = e.target.value; });
+  var own = h("input", { type: "text", id: "f-owner", maxlength: "30", placeholder: "담당자 (가명 권장)", autocomplete: "off" });
+  own.value = p.owner || ""; own.addEventListener("input", function (e) { p.owner = e.target.value; });
+  box.append(h("div", { class: "result" },
+    h("h3", null, "분류 결과 ", h("span", { class: "pill" + (p.mode === "ai" ? "" : " warn"), text: p.mode === "ai" ? "Gemini AI 분류" : "규칙 분류" })),
+    p.mode !== "ai" ? h("div", { class: "notice" }, h("b", { text: "AI 없이 규칙으로 갈랐습니다. " }), p.error ? "이유: " + p.error : "") : null,
+    h("div", { class: "hint", text: "개인정보를 가린 문장" }),
+    h("p", { class: "txt", text: p.text }),
+    h("div", { class: "fields" },
+      h("div", null, h("label", { class: "lbl", for: "f-cat" }, "구분"), cat),
+      h("div", null, h("label", { class: "lbl", for: "f-urg" }, "긴급도"), urg),
+      h("div", null, h("label", { class: "lbl", for: "f-stat" }, "처리 단계"), stt),
+      h("div", null, h("label", { class: "lbl", for: "f-owner" }, "담당자"), own)),
+    p.why ? h("div", { class: "why" }, h("b", { text: "판정 이유 " }), p.why) : null,
+    h("div", { class: "row mt" },
+      h("button", { class: "btn primary", onclick: savePending }, "팀 목록에 저장"),
+      h("button", { class: "btn", onclick: function () { S.pending = null; renderResult(); } }, "버리기"))));
+}
+async function savePending() {
+  var p = S.pending; if (!p) return;
+  var where = await addItem({
+    text: p.text, cat: p.cat, urg: p.urg, stat: p.stat, owner: (p.owner || "").trim(),
+    check: p.stat === "추가확인", reason: "", why: p.why || "", ai: p.ai,
+    edited: p.cat !== p.ai.cat || p.urg !== p.ai.urg, mode: p.mode, src: "user"
+  });
+  if (where === "fail") return;
+  S.pending = null; S.draftText = ""; renderClassify(); renderList();
+  toast(where === "shared" ? "팀 목록에 저장했습니다." : "이 화면에만 담았습니다. 공유 저장소가 연결되지 않아 새로고침하면 사라집니다.");
+}
+
+/* ===================== 화면: 팀 목록 ===================== */
+var TILE_LABEL = { open: "미해결 (완료 제외)", decide: "결정대기", urgent: "긴급 높음 · 미해결", check: "추가확인 필요", done: "완료" };
+function pickTile(kind) {
+  var f = S.filters, again = S.tile === kind;
+  f.cat = f.urg = f.stat = ""; f.open = f.check = false; S.tile = null;
+  if (!again) {
+    S.tile = kind;
+    if (kind === "open") f.open = true;
+    else if (kind === "decide") f.stat = "결정대기";
+    else if (kind === "urgent") { f.urg = "높음"; f.open = true; }
+    else if (kind === "check") { f.check = true; f.open = true; }
+    else if (kind === "done") f.stat = "완료";
+    f.sort = "urg";   // 긴급도 순(미해결 먼저)으로 정렬해 보여 준다
+  }
+  renderList();
+  if (S.tile) setTimeout(function () { var t = $("#view-list .items"); if (t && t.scrollIntoView) t.scrollIntoView({ behavior: "smooth", block: "start" }); }, 30);
+}
+function catCls(c) { var i = CAT_KEYS.indexOf(c); return "ck" + (i < 0 ? CAT_KEYS.length - 1 : i); }
+var STAGE_IDX = { "신규": 0, "검토중": 1, "결정대기": 2, "완료": 3 };
+function statCell(it) {
+  var i = STAGE_IDX[it.stat];
+  if (i == null) return h("span", { class: "chip stat eq stat-" + it.stat, text: it.stat });   // 추가확인은 단계가 아니라 점선 칩
+  var dots = h("span", { class: "dots" });
+  for (var j = 0; j < 4; j++) dots.append(h("i", { class: j <= i ? "on" : "" }));
+  return h("span", { class: "st2 eq s" + i, title: it.stat }, dots, h("b", { text: it.stat }));
+}
+function renderTotal(all) {
+  var t = $("#tab-total");
+  if (t) {
+    t.textContent = "";
+    t.append("전체 ", h("b", { text: String(all.length) }), "건 현황 ", h("span", { class: "caret", text: S.statusOpen ? "▴" : "▾" }));
+    t.setAttribute("aria-expanded", S.statusOpen ? "true" : "false");
+  }
+  renderStatusPanel(all);
+}
+function filterByCat(c) {
+  S.filters = { cat: c, urg: "", stat: "", open: false, check: false, hideSample: false, q: "", sort: "urg" };
+  S.tile = null; S.statusOpen = false;
+  if (location.hash !== "#list") location.hash = "#list";
+  renderList();
+}
+function renderStatusPanel(all) {
+  var p = $("#status-panel"); if (!p) return;
+  p.hidden = !S.statusOpen;
+  if (!S.statusOpen) return;
+  var cols = ["신규", "검토중", "결정대기", "추가확인", "완료"].filter(function (c) { return STAT_KEYS.indexOf(c) >= 0; });
+  var cnt = {};
+  CAT_KEYS.forEach(function (c) { cnt[c] = {}; cols.forEach(function (st) { cnt[c][st] = 0; }); });
+  all.forEach(function (x) { if (cnt[x.cat] && cnt[x.cat][x.stat] != null) cnt[x.cat][x.stat]++; });
+  var colTot = cols.map(function () { return 0; });
+  var head = h("tr", null, h("th", { text: "구분" }));
+  cols.forEach(function (st) { head.append(h("th", { class: "num", text: st })); });
+  head.append(h("th", { class: "num", text: "합계" }), h("th", { class: "num", text: "미해결" }));
+  var body = h("tbody");
+  CAT_KEYS.forEach(function (c) {
+    var sum = 0, tr = h("tr", null, h("th", null, h("button", { type: "button", class: "chip cat " + catCls(c), title: "이 구분만 목록에서 보기", onclick: function () { filterByCat(c); }, text: c })));
+    cols.forEach(function (st, i) {
+      var n = cnt[c][st]; sum += n; colTot[i] += n;
+      tr.append(h("td", { class: "num" + (st === "완료" ? " done" : ""), text: n ? String(n) : "·" }));
+    });
+    tr.append(h("td", { class: "num sum", text: String(sum) }), h("td", { class: "num open", text: String(sum - cnt[c]["완료"]) }));
+    body.append(tr);
+  });
+  var foot = h("tr", { class: "foot" }, h("th", { text: "합계" }));
+  var doneTot = colTot[cols.indexOf("완료")];
+  colTot.forEach(function (n, i) { foot.append(h("td", { class: "num" + (cols[i] === "완료" ? " done" : ""), text: String(n) })); });
+  foot.append(h("td", { class: "num sum", text: String(all.length) }), h("td", { class: "num open", text: String(all.length - doneTot) }));
+  body.append(foot);
+  var close = h("button", { type: "button", class: "btn sm", onclick: function () { S.statusOpen = false; renderTotal(allItems()); } }, "닫기");
+  p.textContent = "";
+  p.append(
+    h("div", { class: "sp-head" }, h("h3", { text: "전체 " + all.length + "건 — 구분별 현황 (완료 포함)" }), close),
+    h("p", { class: "hint", text: "구분 이름을 누르면 그 구분의 업무만 목록에 보입니다." }),
+    h("div", { class: "tbl-wrap" }, h("table", { class: "ntab" }, h("thead", null, head), body))
+  );
+}
+(function () {
+  var t = $("#tab-total");
+  if (t) t.addEventListener("click", function () { S.statusOpen = !S.statusOpen; renderTotal(allItems()); });
+})();
+var UPDATING = false;
+async function refreshList() {
+  if (UPDATING) return;
+  UPDATING = true;
+  var b = $("#fupdate"); if (b) { b.disabled = true; b.textContent = "⟳ 업데이트 중…"; }
+  var ok = await loadItems();
+  UPDATING = false;
+  renderPills(); renderList();
+  var tt = new Date(S.updatedAt).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  toast(ok ? "업데이트했습니다. (" + tt + ")" : (S.store === "memory" ? "공유 저장소가 연결되지 않아 이 화면의 목록만 보여 줍니다." : "업데이트하지 못했습니다. " + (S.storeErr || "")));
+}
+function resetFilters() {
+  S.filters = { cat: "", urg: "", stat: "", open: false, check: false, hideSample: false, q: "", sort: "urg" };
+  S.tile = null;
+  renderList();
+  toast("검색 조건을 초기화했습니다.");
+}
+function setView(m) { S.view = m; lsSet("npd_view_v1", m); renderList(); }
+function renderList() {
+  var v = $("#view-list"); if (!v) return;
+  var f = S.filters, all = allItems();
+  var openItems = all.filter(function (x) { return x.stat !== "완료"; });
+  var list = all.filter(function (x) {
+    if (f.cat && x.cat !== f.cat) return false;
+    if (f.urg && x.urg !== f.urg) return false;
+    if (f.stat && x.stat !== f.stat) return false;
+    if (f.open && x.stat === "완료") return false;
+    if (f.check && !x.check) return false;
+    if (f.hideSample && x.src === "sample") return false;
+    if (f.q && String(x.text).indexOf(f.q) < 0 && String(x.owner || "").indexOf(f.q) < 0) return false;
+    return true;
+  });
+  list.sort(function (a, b) {
+    if (f.sort === "urg") {
+      var da = a.stat === "완료" ? 1 : 0, db_ = b.stat === "완료" ? 1 : 0;
+      if (da !== db_) return da - db_;
+      var ua = URG_RANK[a.urg], ub = URG_RANK[b.urg];
+      if (ua !== ub) return ua - ub;
+    }
+    return (b.at || 0) - (a.at || 0);
+  });
+
+  // 숫자 타일: 누르면 해당 업무만 긴급도 순으로
+  function box(n, l, alert, kind) {
+    var active = S.tile === kind;
+    return h("button", { type: "button", class: "stat-box k-" + kind + (alert && n ? " alert" : "") + (active ? " active" : ""),
+      "aria-pressed": active ? "true" : "false", title: active ? "다시 누르면 필터가 풀립니다" : "누르면 해당 업무만 보입니다",
+      onclick: function () { pickTile(kind); } },
+      h("div", { class: "n", text: n }), h("div", { class: "l", text: l }), h("span", { class: "go", "aria-hidden": "true", text: "›" }));
+  }
+  var summary = h("div", { class: "summary" },
+    box(openItems.length, "미해결 (완료 제외)", false, "open"),
+    box(all.filter(function (x) { return x.stat === "결정대기"; }).length, "결정대기", false, "decide"),
+    box(openItems.filter(function (x) { return x.urg === "높음"; }).length, "긴급 높음 · 미해결", true, "urgent"),
+    box(all.filter(function (x) { return x.check && x.stat !== "완료"; }).length, "추가확인 필요", false, "check"));
+
+  // 상세검색 안의 조건들
+  function fsel(id, label, keys, cur, key) {
+    var sl = h("select", { id: id, "aria-label": label }, h("option", { value: "", text: label + " 전체" }));
+    keys.forEach(function (k) { sl.append(h("option", { value: k, text: k })); });
+    sl.value = cur; sl.addEventListener("change", function (e) { f[key] = e.target.value; S.tile = null; renderList(); });
+    return sl;
+  }
+  function fchk(id, label, key) {
+    var c = h("input", { type: "checkbox", id: id }); c.checked = f[key];
+    c.addEventListener("change", function (e) { f[key] = e.target.checked; S.tile = null; renderList(); });
+    return h("label", { class: "chk", for: id }, c, label);
+  }
+  var sort = h("select", { id: "sort", "aria-label": "정렬" }, h("option", { value: "urg", text: "긴급도순 (미해결 먼저)" }), h("option", { value: "new", text: "최신순" }));
+  sort.value = f.sort; sort.addEventListener("change", function (e) { f.sort = e.target.value; renderList(); });
+  var panel = h("div", { class: "adv-panel", id: "adv-panel" },
+    fsel("fc", "분류", CAT_KEYS, f.cat, "cat"), fsel("fu", "긴급도", URG_KEYS, f.urg, "urg"), fsel("fs", "처리상태", STAT_KEYS, f.stat, "stat"),
+    sort, fchk("fo", "미해결만", "open"), fchk("fk", "추가확인만", "check"), fchk("fh", "연습 데이터 숨기기", "hideSample"));
+  panel.hidden = !S.advOpen;
+  var detailN = [f.cat, f.urg, f.stat].filter(Boolean).length + (f.open ? 1 : 0) + (f.check ? 1 : 0) + (f.hideSample ? 1 : 0) + (f.sort !== "urg" ? 1 : 0);
+  var anyN = detailN + (f.q ? 1 : 0);
+
+  // 도구줄: 상세검색 · 검색창 · 조건 초기화 · 건수 · 보기 방식
+  var q = h("input", { type: "search", id: "q", placeholder: "문장·담당자 검색", "aria-label": "문장·담당자 검색" }); q.value = f.q;
+  q.addEventListener("input", function (e) { f.q = e.target.value; clearTimeout(S.qt); S.qt = setTimeout(function () { renderList(); var n = $("#q"); if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); } }, 250); });
+  var advBtn = h("button", { type: "button", class: "adv-btn" + (S.advOpen ? " open" : ""), "aria-expanded": S.advOpen ? "true" : "false", "aria-controls": "adv-panel",
+    onclick: function () { S.advOpen = !S.advOpen; renderList(); } },
+    "⚙ 상세검색", detailN ? h("em", { text: String(detailN) }) : null, h("span", { class: "caret", text: S.advOpen ? "▴" : "▾" }));
+  var resetBtn = h("button", { type: "button", id: "freset", class: "btn ghost", disabled: anyN === 0, onclick: resetFilters }, "↺ 조건 초기화");
+  function segBtn(mode, label) {
+    return h("button", { type: "button", class: "seg-btn" + (S.view === mode ? " on" : ""), "aria-pressed": S.view === mode ? "true" : "false", onclick: function () { setView(mode); } }, label);
+  }
+  var seg = h("div", { class: "seg", role: "group", "aria-label": "보기 방식" }, segBtn("card", "▦ 카드"), segBtn("table", "☰ 표"));
+  var tt = new Date(S.updatedAt).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  var upd = h("button", { type: "button", id: "fupdate", class: "btn sm upd", title: "마지막 업데이트 " + tt + " — 눌러서 목록을 다시 불러옵니다", "aria-label": "목록 업데이트(마지막 " + tt + ")", onclick: refreshList }, "⟳ 업데이트");
+  var bar = h("div", { class: "a-bar" }, advBtn, q, resetBtn, upd, seg);
+  renderTotal(all);
+
+  var body;
+  if (!list.length) {
+    body = h("div", { class: "items" }, h("div", { class: "empty" },
+      all.length ? "조건에 맞는 안건이 없습니다. 필터를 풀어 보세요." : (S.store === "checking" ? "공유 목록을 불러오는 중입니다." : S.store === "locked" ? "팀 코드를 입력하면 팀 목록이 보입니다." : "아직 저장된 안건이 없습니다. '분류하기'에서 문장을 분류해 저장하면 여기에 모입니다.")));
+  } else if (S.view === "table") {
+    body = tableFor(list);
+  } else {
+    body = h("div", { class: "items" }, list.map(rowFor));
+  }
+  var tileNote = S.tile ? h("p", { class: "hint tile-note" }, "「" + TILE_LABEL[S.tile] + "」 업무만 긴급도 순으로 정렬해 보는 중입니다. 같은 숫자를 다시 누르면 전체로 돌아갑니다.") : null;
+  v.textContent = "";
+  if (S.store === "db" && S.storeErr) v.append(h("div", { class: "notice info", style: "margin-bottom:12px" }, S.storeErr + ". 화면에 보이는 내용이 최신이 아닐 수 있습니다."));
+  else if (S.store === "memory") v.append(h("div", { class: "notice info", style: "margin-bottom:12px" }, S.storeErr + ". 지금 담는 업무는 이 화면에만 있고 새로고침하면 사라집니다."));
+  v.append(summary);
+  if (tileNote) v.append(tileNote);
+  v.append(bar, panel, body);
+}
+function startEdit(it) { S.editingId = it.id; S.draft = { cat: it.cat, urg: it.urg, stat: it.stat, owner: it.owner || "" }; renderList(); }
+function cancelEdit() { S.editingId = null; S.draft = null; renderList(); }
+async function saveEdit(it) {
+  var dr = S.draft; if (!dr) return;
+  var patch = {};
+  if (dr.cat !== it.cat) { patch.cat = dr.cat; patch.edited = true; }
+  if (dr.urg !== it.urg) { patch.urg = dr.urg; patch.edited = true; }
+  if (dr.stat !== it.stat) { patch.stat = dr.stat; patch.check = dr.stat === "추가확인"; }
+  var ow = String(dr.owner || "").trim();
+  if (ow !== String(it.owner || "")) patch.owner = ow;
+  if (!Object.keys(patch).length) { cancelEdit(); return; }
+  var ok = await updateItem(it, patch);
+  if (ok) { S.editingId = null; S.draft = null; renderList(); toast("수정했습니다."); }
+}
+function editorFor(it) {
+  var dr = S.draft;
+  function field(label, keys, key) {
+    var id = "ed-" + key;
+    return h("div", { class: "ed-field" }, h("label", { for: id, text: label }), sel(id, keys, dr[key], function (e) { dr[key] = e.target.value; }));
+  }
+  var armed = false;
+  var delBtn = h("button", { class: "btn sm danger", type: "button", onclick: function () {
+    if (!armed) { armed = true; delBtn.textContent = "정말 삭제"; setTimeout(function () { armed = false; delBtn.textContent = "삭제"; }, 3000); }
+    else { S.editingId = null; S.draft = null; removeItem(it); }
+  } }, "삭제");
+  var ownerIn = h("input", { type: "text", id: "ed-owner", maxlength: "30", placeholder: "담당자 이름 (가상 데이터 단계에서는 가명 권장)", autocomplete: "off" });
+  ownerIn.value = dr.owner || "";
+  ownerIn.addEventListener("input", function (e) { dr.owner = e.target.value; });
+  return h("div", { class: "editor" },
+    h("div", { class: "ed-grid" }, field("분류", CAT_KEYS, "cat"), field("긴급도", URG_KEYS, "urg"), field("처리상태", STAT_KEYS, "stat"),
+      h("div", { class: "ed-field" }, h("label", { for: "ed-owner", text: "담당자" }), ownerIn)),
+    h("div", { class: "ed-note", text: "담당자는 이 목록을 보는 팀원에게 그대로 보입니다. 가상 데이터 단계에서는 실제 이름 대신 가명을 쓰세요." }),
+    h("div", { class: "ed-actions" },
+      h("button", { class: "btn sm primary", type: "button", onclick: function () { saveEdit(it); } }, "저장"),
+      h("button", { class: "btn sm", type: "button", onclick: cancelEdit }, "취소"),
+      h("span", { class: "grow" }), delBtn));
+}
+function rowFor(it) {
+  var editing = S.editingId === it.id;
+  var d = it.at ? new Date(it.at).toLocaleDateString("ko-KR", { month: "numeric", day: "numeric" }) : "";
+  var main = h("div", { class: "item-main" },
+    h("p", { class: "txt", text: it.text }),
+    h("div", { class: "meta" },
+      h("span", { class: "chip urg-" + it.urg, text: "긴급 " + it.urg }),
+      statCell(it),
+      h("span", { class: "chip cat eq " + catCls(it.cat), text: it.cat }),
+      whoChip(it),
+      it.check && it.stat !== "완료" ? h("span", { class: "chip stat stat-추가확인", title: it.reason || "", text: "확인 필요" }) : null,
+      it.src === "sample" ? h("span", { class: "chip", text: "연습 데이터" }) : null,
+      it.loc ? h("span", { class: "chip", text: "공유 안 됨(이 화면만)" }) : null,
+      null /* '사람이 수정' 표시는 화면에 보이지 않게 함(값은 저장됨) */,
+      h("span", { class: "mono", text: d })));
+  var editBtn = h("button", { class: "btn sm edit icon", type: "button", disabled: editing, title: editing ? "수정 중" : "수정", "aria-label": editing ? "수정 중" : "수정", onclick: function () { startEdit(it); } });
+  var row = h("div", { class: "item u-" + it.urg + (it.stat === "완료" ? " done" : "") + (editing ? " editing" : "") },
+    h("div", { class: "item-top" }, main, h("div", { class: "item-side" }, editBtn)));
+  if (editing) row.append(editorFor(it));
+  return row;
+}
+
+function whoChip(it) {
+  if (!it.owner) return h("span", { class: "who none eq", text: "담당자 미지정" });
+  return h("span", { class: "who eq", title: it.owner }, h("b", { text: Array.from(String(it.owner))[0] }), h("span", { class: "nm", text: it.owner }));
+}
+var UCLS = { "높음": "h", "보통": "m", "낮음": "l" };
+function tableFor(list) {
+  var thead = h("thead", null, h("tr", null, h("th", { text: "긴급도" }), h("th", { text: "안건" }), h("th", { text: "구분" }), h("th", { text: "처리 단계" }), h("th", { text: "담당자" }), h("th", { text: "" })));
+  var tbody = h("tbody");
+  list.forEach(function (it) {
+    var editing = S.editingId === it.id;
+    var flags = [
+      it.check && it.stat !== "완료" ? h("span", { class: "chip stat stat-추가확인", title: it.reason || "", text: "확인 필요" }) : null,
+      it.src === "sample" ? h("span", { class: "chip", text: "연습 데이터" }) : null,
+      it.loc ? h("span", { class: "chip", text: "공유 안 됨(이 화면만)" }) : null,
+      null /* '사람이 수정' 표시는 화면에 보이지 않게 함(값은 저장됨) */
+    ].filter(Boolean);
+    var tr = h("tr", { class: (it.stat === "완료" ? "done " : "") + (editing ? "editing" : "") },
+      h("td", null, h("span", { class: "c-urg " + (UCLS[it.urg] || "m") }, h("i"), it.urg)),
+      h("td", { class: "t" }, h("div", { text: it.text }), flags.length ? h("div", { class: "tflags" }, flags) : null),
+      h("td", null, h("span", { class: "chip cat eq " + catCls(it.cat), text: it.cat })),
+      h("td", null, statCell(it)),
+      h("td", null, whoChip(it)),
+      h("td", null, h("button", { class: "btn sm edit icon", type: "button", disabled: editing, title: editing ? "수정 중" : "수정", "aria-label": editing ? "수정 중" : "수정", onclick: function () { startEdit(it); } })));
+    tbody.append(tr);
+    if (editing) tbody.append(h("tr", { class: "edit-row" }, h("td", { colspan: "6" }, editorFor(it))));
+  });
+  return h("div", { class: "c-wrap" }, h("table", { class: "c-tab" }, thead, tbody));
+}
+
+/* ===================== 화면: 분류 기준 ===================== */
+function renderRules() {
+  var v = $("#view-rules"); v.textContent = "";
+  function table(head, rows) {
+    return h("div", { class: "tbl-wrap" }, h("table", null,
+      h("thead", null, h("tr", null, head.map(function (x) { return h("th", { text: x }); }))),
+      h("tbody", null, rows.map(function (r) { return h("tr", null, r.map(function (c, i) { return h("td", { class: i === 0 ? "k" : "", text: c }); })); }))));
+  }
+  v.append(h("div", { class: "panel" },
+    h("h2", { text: "분류 기준" }),
+    h("p", { class: "hint", text: "AI는 이 기준대로 분류합니다. 기준은 팀장님이 정하며, 이 화면에서는 바꿀 수 없습니다." }),
+    h("h3", { text: "칸 (" + CATS.length + "개)" }),
+    table(["칸", "무엇을 담는가"], CATS.map(function (c) { return [c.k, c.d]; })),
+    h("h3", { text: "칸이 두 곳에 걸칠 때" }),
+    h("ol", { class: "order" },
+      h("li", { text: "실제 요청의 핵심 행동을 기준으로 정합니다." }),
+      h("li", { text: "핵심 행동이 불명확하면 이 순서로 정합니다: " + CRITERIA["판정순서"].join(" → ") }),
+      h("li", { text: "순서의 이유: " + CRITERIA["순서의_이유"] })),
+    h("h3", { text: "긴급도 (3단계)" }),
+    table(["긴급도", "기준"], URGS.map(function (c) { return [c.k, c.d]; })),
+    h("h3", { text: "처리상태" }),
+    table(["처리상태", "기준"], STATS.map(function (c) { return [c.sym + " " + c.k, c.d]; })),
+    h("p", { class: "hint mt", text: "처리상태는 문장에 나타난 진행 상황만으로 판단합니다. 분명하지 않으면 완료로 처리하지 않고 추가확인으로 표시합니다." })));
+}
+
+/* ===================== 화면 전환 (정확도 점검은 grade.html 로 이동) ===================== */
+var TABS = ["classify", "list", "rules"];
+function showTab() {
+  var t = (location.hash || "").replace("#", "");
+  if (TABS.indexOf(t) < 0) t = "classify";
+  TABS.forEach(function (k) {
+    var sec = $("#view-" + k); if (sec) sec.hidden = (k !== t);
+    var a = $('#tabs a[data-tab="' + k + '"]'); if (a) { if (k === t) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current"); }
+  });
+  if (t === "list") renderList();
+}
+window.addEventListener("hashchange", showTab);
+
+/* ===================== 시작: 기준 파일 → 화면 → 팀 목록 ===================== */
+function getJ(p) { return fetch(p, { cache: "no-store" }).then(function (r) { if (!r.ok) throw new Error(p); return r.json(); }); }
+(async function boot() {
+  renderPills();
+  try {
+    var v = await Promise.all([getJ("criteria.json"), getJ("status.json"), getJ("keywords.json")]);
+    setupCriteria(v[0], v[1], v[2]);
+  } catch (e) {
+    $("main").textContent = "기준 파일(criteria.json 등)을 읽지 못했습니다. 잠시 뒤 새로고침해 주세요.";
+    return;
+  }
+  renderClassify(); renderRules(); showTab();
+  // Gemini 키가 서버에 있는지 미리 확인해 상단 표시를 맞춘다 (실패해도 분류 때 규칙으로 대신함)
+  fetch("/api/classify", { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (j) {
+    S.model = j.model || null; if (!j.gemini_configured && S.aiMode === "unknown") S.aiMode = "rule"; renderPills();
+  }).catch(function () {});
+  await loadItems(); renderPills(); renderList();
+  // 다른 팀원이 저장한 내용도 30초마다 반영 (화면을 보고 있고, 수정 중이 아닐 때만)
+  setInterval(function () {
+    if (S.store === "db" && document.visibilityState === "visible" && !S.editingId && !UPDATING) {
+      loadItems().then(function () { renderPills(); renderList(); });
+    }
+  }, 30000);
+})();
+</script>
+
 </body>
 </html>
