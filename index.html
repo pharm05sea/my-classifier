@@ -25,7 +25,8 @@
   </nav>
 
   <main>
-    <section id="view-classify" class="panel" role="tabpanel" aria-labelledby="tab-classify">
+    <section id="view-classify" class="split" role="tabpanel" aria-labelledby="tab-classify">
+    <div class="panel" id="classify-main">
       <label class="lbl" for="txt">안건 또는 미해결 이슈 (한 줄)</label>
       <textarea id="txt" maxlength="500" placeholder="예: 인체적용시험 중간 결과 나왔는데 1차 지표 유의성이 애매함. 통계팀 재분석중."></textarea>
       <div class="row">
@@ -35,6 +36,11 @@
       <div id="status" class="hint" role="status" aria-live="polite"></div>
       <div id="result" class="result" hidden></div>
       <p class="foot">입력한 문장과 분류 결과는 저장하지 않습니다. 이름·전화번호·사번·이메일은 브라우저에서 가린 뒤 그 문장만 AI 서버로 보냅니다. 이름은 직급이 붙은 경우만 가려집니다.</p>
+    </div>
+    <aside class="panel side" id="classify-side" aria-labelledby="edit-title">
+      <h2 id="edit-title">분류 수정</h2>
+      <div id="edit-body"><p class="hint">기준 파일을 읽는 중입니다.</p></div>
+    </aside>
     </section>
 
     <section id="view-dashboard" class="panel" role="tabpanel" aria-labelledby="tab-dashboard" hidden>

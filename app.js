@@ -6,7 +6,7 @@
   "use strict";
   var $ = function (id) { return document.getElementById(id); };
   var S = { criteria: null, keywords: null, ready: false, gold: null, ruleRows: null, aiRuns: [], busy: false,
-            items: [], seq: 0, status: null, dash: { cat: "", urg: "", stat: "", open: false } };   // items: 대시보드용, 이 화면을 연 동안만 메모리에 보관
+            items: [], seq: 0, status: null, currentId: null, edit: null, dash: { cat: "", urg: "", stat: "", open: false } };   // items: 대시보드용, 이 화면을 연 동안만 메모리에 보관
   var BATCH = 10;
 
   function el(tag, cls, text) {
@@ -73,21 +73,98 @@
   function renderResult(masked, r, info) {
     var box = $("result");
     box.textContent = "";
-    var h2 = el("h2", null, "분류 결과 ");
-    h2.append(el("span", "badge" + (info.mode === "ai" ? "" : " warn"), info.mode === "ai" ? "Gemini AI 분류 (" + info.model + ")" : "규칙 분류"));
-    box.append(h2);
+    var catDef = (S.criteria["칸"].filter(function (c) { return c["이름"] === r.category; })[0] || {})["정의"] || "";
+    var urgDef = (S.criteria["긴급도"].filter(function (u) { return u["이름"] === r.urgency; })[0] || {})["기준"] || "";
+    box.append(el("div", "res-head", null,
+      el("h2", null, "분류 결과"),
+      el("span", "badge" + (info.mode === "ai" ? "" : " warn"), info.mode === "ai" ? "Gemini AI 분류 (" + info.model + ")" : "규칙 분류")));
     if (info.mode !== "ai") {
       box.append(el("p", "notice", "AI 없이 규칙으로 갈랐습니다"));
       box.append(el("p", "hint", "AI를 쓰지 못한 이유: " + info.error));
     }
     box.append(
-      field("개인정보를 가린 문장", el("p", "masked", masked)),
-      el("div", "pair", null,
-        field("분류 칸", el("p", "big", r.category)),
-        field("긴급도", el("span", "chip u-" + urgIndex(r.urgency), r.urgency))),
-      field("판정 이유", el("p", "why", r.reason))
+      el("div", "rgrid", null,
+        el("div", "rcard", null, el("div", "k", "분류 칸"), el("div", "v big", r.category), el("div", "d", catDef)),
+        el("div", "rcard", null, el("div", "k", "긴급도"), el("div", "v", null, el("span", "chip lg u-" + urgIndex(r.urgency), r.urgency)), el("div", "d", urgDef))),
+      el("div", "rblock", null, el("div", "k", "판정 이유"), el("p", "why", r.reason)),
+      el("div", "rblock", null, el("div", "k", "개인정보를 가린 문장"), el("blockquote", "masked", masked))
     );
     box.hidden = false;
+  }
+
+  /* ---------- 분류 수정 (오른쪽 패널): 칸·긴급도·처리상태를 안건별로 고친다. 고친 값은 업무 진행 대시보드에 바로 반영된다 ---------- */
+  function currentItem() { return S.items.filter(function (x) { return x.id === S.currentId; })[0] || null; }
+  function showItem(it) { S.currentId = it.id; renderEditor(); }
+
+  function renderEditor() {
+    var box = $("edit-body");
+    if (!box) return;
+    box.textContent = "";
+    S.edit = null;
+    if (!S.ready) return;
+    var it = currentItem();
+    if (!it) {
+      box.append(el("p", "hint", "문장을 분류하면 이곳에서 칸·긴급도·처리상태를 직접 고칠 수 있습니다. 고친 내용은 「업무 진행 대시보드」에 바로 반영됩니다."));
+      return;
+    }
+    function def(list, key, v) { return (list.filter(function (x) { return x["이름"] === v; })[0] || {})[key] || ""; }
+    var specs = [
+      { key: "cat", label: "분류 칸", opts: names(S.criteria["칸"]), field: "category", def: function (v) { return def(S.criteria["칸"], "정의", v); } },
+      { key: "urg", label: "긴급도", opts: names(S.criteria["긴급도"]), field: "urgency", def: function (v) { return def(S.criteria["긴급도"], "기준", v); } },
+      { key: "stat", label: "처리상태", opts: stageNames(), field: "status", def: function (v) { return def(S.status["처리상태"], "기준", v); } }
+    ];
+    var refs = {};
+    box.append(el("div", "k", "수정할 안건"), el("blockquote", "masked sm", it.text));
+    specs.forEach(function (sp) {
+      var id = "edit-" + sp.key;
+      var label = el("label", "lbl", sp.label); label.setAttribute("for", id);
+      var s = el("select"); s.id = id;
+      sp.opts.forEach(function (o) { s.append(new Option(o, o)); });
+      s.value = it[sp.field];
+      var d = el("p", "edef", sp.def(s.value));
+      s.addEventListener("change", function () {
+        var cur = currentItem();
+        if (!cur) return;
+        cur[sp.field] = s.value;
+        cur.edited = cur.category !== cur.origCategory || cur.urgency !== cur.origUrgency;
+        d.textContent = sp.def(s.value);
+        refreshState();
+        renderDashboard();
+      });
+      refs[sp.key] = { sel: s, def: d, field: sp.field, defFn: sp.def };
+      box.append(el("div", "egroup", null, label, s, d));
+    });
+    var state = el("div", "edit-state");
+    var reset = el("button", "btn", "원래 판정으로 되돌리기"); reset.type = "button";
+    reset.addEventListener("click", function () {
+      var cur = currentItem();
+      if (!cur) return;
+      cur.category = cur.origCategory; cur.urgency = cur.origUrgency; cur.edited = false;
+      syncEditor(); renderDashboard();
+    });
+    function refreshState() {
+      var cur = currentItem();
+      state.textContent = "";
+      if (!cur) return;
+      state.append(el("div", null, "원래 판정: " + cur.origCategory + " · 긴급도 " + cur.origUrgency + " (" + (cur.mode === "ai" ? "Gemini AI" : "규칙") + ")"));
+      state.append(cur.edited ? el("div", "edited", "사람이 수정했습니다 — 대시보드에 수정한 값이 보입니다") : el("div", null, "수정하지 않았습니다"));
+      reset.disabled = !cur.edited;
+    }
+    box.append(state, el("div", "row", null, reset));
+    S.edit = { refs: refs, refreshState: refreshState };
+    refreshState();
+  }
+
+  // 대시보드에서 값이 바뀌거나 안건이 지워졌을 때 오른쪽 패널을 맞춘다
+  function syncEditor() {
+    var it = currentItem();
+    if (!it || !S.edit) { renderEditor(); return; }
+    Object.keys(S.edit.refs).forEach(function (k) {
+      var r = S.edit.refs[k];
+      r.sel.value = it[r.field];
+      r.def.textContent = r.defFn(it[r.field]);
+    });
+    S.edit.refreshState();
   }
   // 예시 문장: keywords.json 의 예시(data/practice.json 에서 뽑은 연습 문장)를 차례로 돌려 가며 넣는다.
   var exampleIdx = 0;
@@ -128,14 +205,14 @@
       var shown = !err ? ai : window.NpdRules.classify(masked, S.criteria, S.keywords);
       var info = !err ? { mode: "ai", model: res.model } : { mode: "rule", error: err };
       renderResult(masked, shown, info);
-      addItem(masked, shown, info);
+      showItem(addItem(masked, shown, info));
       status.textContent = "";
     }).catch(function () {
       // 어떤 오류가 나도 분류가 멈추지 않게 규칙으로 처리한다
       var r = window.NpdRules.classify(masked, S.criteria, S.keywords);
       var info = { mode: "rule", error: "예상하지 못한 오류" };
       renderResult(masked, r, info);
-      addItem(masked, r, info);
+      showItem(addItem(masked, r, info));
       status.textContent = "";
     }).then(function () { S.busy = false; btn.disabled = false; });
   }
@@ -369,11 +446,14 @@
   function doneStage() { var s = stageNames(); return s[s.length - 1]; }   // 마지막 단계가 완료
 
   function addItem(masked, r, info) {
-    var rec = { text: masked, category: r.category, urgency: r.urgency, reason: r.reason, mode: info.mode, model: info.model || null, at: Date.now() };
+    var rec = { text: masked, category: r.category, urgency: r.urgency, reason: r.reason, mode: info.mode, model: info.model || null, at: Date.now(),
+                origCategory: r.category, origUrgency: r.urgency, edited: false };
     var same = S.items.filter(function (x) { return x.text === masked; })[0];
-    if (same) Object.assign(same, rec);                  // 같은 문장을 다시 분류해도 처리상태는 그대로 둔다
-    else { rec.id = ++S.seq; rec.status = stageNames()[0]; S.items.push(rec); }
+    var item = same;
+    if (same) Object.assign(same, rec);                  // 같은 문장을 다시 분류하면 새 판정으로 덮어쓰고, 처리상태는 그대로 둔다
+    else { rec.id = ++S.seq; rec.status = stageNames()[0]; S.items.push(rec); item = rec; }
     renderDashboard();
+    return item;
   }
 
   function buildDashboard() {
@@ -395,7 +475,7 @@
       if (!armed) {
         armed = true; clear.textContent = "정말 지우기";
         setTimeout(function () { armed = false; clear.textContent = "모두 지우기"; }, 3000);
-      } else { armed = false; clear.textContent = "모두 지우기"; S.items = []; renderDashboard(); }
+      } else { armed = false; clear.textContent = "모두 지우기"; S.items = []; renderDashboard(); syncEditor(); }
     });
     var openOnly = el("input"); openOnly.type = "checkbox"; openOnly.id = "dash-open";
     openOnly.addEventListener("change", function () { S.dash.open = openOnly.checked; renderDashboard(); });
@@ -504,9 +584,9 @@
     shown.forEach(function (x) {
       var sel = el("select"); sel.setAttribute("aria-label", "처리상태");
       stages.forEach(function (s) { var o = new Option(s, s); if (s === x.status) o.selected = true; sel.append(o); });
-      sel.addEventListener("change", function () { x.status = sel.value; renderDashboard(); });
+      sel.addEventListener("change", function () { x.status = sel.value; renderDashboard(); syncEditor(); });
       var del = el("button", "btn sm", "삭제"); del.type = "button";
-      del.addEventListener("click", function () { S.items = S.items.filter(function (y) { return y.id !== x.id; }); renderDashboard(); });
+      del.addEventListener("click", function () { S.items = S.items.filter(function (y) { return y.id !== x.id; }); renderDashboard(); syncEditor(); });
       var tags = el("div", "tags");
       tags.append(
         el("span", "chip u-" + urgs.indexOf(x.urgency), "긴급도 " + x.urgency),
@@ -514,6 +594,7 @@
         el("span", "tag", x.mode === "ai" ? "Gemini AI 분류" : "규칙 분류"),
         el("span", "tag", new Date(x.at).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" }))
       );
+      if (x.edited) tags.append(el("span", "tag", "사람이 수정 (원래 " + x.origCategory + " · " + x.origUrgency + ")"));
       ul.append(el("li", "wrong item" + (x.urgency === topUrg && x.status !== done ? " hi" : "") + (x.status === done ? " done" : ""), null,
         el("div", "src", x.text), tags, el("div", "rsn", "판정 이유: " + x.reason),
         el("div", "row", null, el("span", "hint", "처리상태"), sel, del)));
@@ -558,7 +639,7 @@
     Promise.all([getJson("criteria.json"), getJson("keywords.json"), getJson("status.json")]).then(function (v) {
       S.criteria = v[0]; S.keywords = v[1]; S.status = v[2]; S.ready = true;
       $("load-note").hidden = true;
-      buildDashboard(); renderDashboard();
+      buildDashboard(); renderDashboard(); renderEditor();
     }).catch(function () {
       var n = $("load-note");
       n.textContent = "criteria.json, keywords.json, status.json 중 하나를 읽지 못했습니다. 파일을 그냥 열면 읽을 수 없습니다. 이 폴더에서 서버를 켜고(python -m http.server 8000) http://localhost:8000/ 로 여세요.";

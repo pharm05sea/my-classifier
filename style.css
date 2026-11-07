@@ -15,6 +15,7 @@
   }
 }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html { -webkit-text-size-adjust: 100%; }
 body {
   margin: 0; background: var(--bg); color: var(--ink);
@@ -22,7 +23,7 @@ body {
   word-break: keep-all; overflow-wrap: break-word;
   padding: 28px max(16px, env(safe-area-inset-right, 0px)) 72px max(16px, env(safe-area-inset-left, 0px));
 }
-.wrap { max-width: 840px; margin: 0 auto; }
+.wrap { max-width: 1120px; margin: 0 auto; }
 h1, h2, h3 { text-wrap: balance; line-height: 1.4; }
 h1 { font-size: 29px; margin: 0; font-weight: 800; letter-spacing: -0.02em; }
 h2 { font-size: 21px; margin: 0 0 14px; font-weight: 800; }
@@ -140,3 +141,31 @@ textarea::placeholder { color: var(--muted); opacity: .8; }
 .wrong.item .row select { font-family: inherit; font-size: 15.5px; min-height: 40px; color: var(--ink); background: var(--surface); border: 1.5px solid var(--line); border-radius: 6px; padding: 4px 8px; }
 .btn.sm { min-height: 40px; padding: 4px 14px; font-size: 14.5px; }
 .empty { padding: 26px 8px; text-align: center; color: var(--muted); list-style: none; }
+
+/* 분류 화면: 왼쪽 입력·결과, 오른쪽 분류 수정 */
+.split { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(300px, 0.75fr); gap: 20px; align-items: start; }
+.side { position: sticky; top: 16px; }
+@media (max-width: 920px) { .split { grid-template-columns: 1fr; } .side { position: static; } }
+
+/* 분류 결과: 읽기 쉬운 카드 */
+.res-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-bottom: 12px; }
+.res-head h2 { margin: 0; }
+.rgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; margin: 6px 0 16px; }
+.rcard { border: 1.5px solid var(--line); border-radius: 8px; padding: 14px 16px; background: var(--bg); }
+.rcard .k, .rblock .k, .side .k { font-size: 14.5px; font-weight: 700; color: var(--muted); margin-bottom: 6px; }
+.rcard .v { font-size: 22px; font-weight: 800; line-height: 1.4; }
+.rcard .v.big { font-size: 26px; }
+.rcard .d { margin-top: 8px; font-size: 14.5px; line-height: 1.65; color: var(--muted); }
+.chip.lg { font-size: 22px; padding: 3px 16px; }
+.rblock { margin-bottom: 16px; }
+.rblock .why { margin: 0; font-size: 17px; line-height: 1.8; border-left: 5px solid var(--accent); border-radius: 0 6px 6px 0; }
+blockquote.masked { margin: 0; padding: 12px 16px; font-size: 16.5px; line-height: 1.8; background: var(--surface-2); border-left: 5px solid var(--line); border-radius: 0 6px 6px 0; }
+blockquote.masked.sm { font-size: 15px; line-height: 1.7; padding: 9px 12px; margin-bottom: 14px; }
+
+/* 분류 수정 패널 */
+.side h2 { margin-bottom: 12px; }
+.egroup { margin-bottom: 16px; }
+.egroup select { width: 100%; font-family: inherit; font-size: 16.5px; min-height: 46px; color: var(--ink); background: var(--surface); border: 1.5px solid var(--line); border-radius: 6px; padding: 6px 10px; }
+.edef { margin: 6px 0 0; font-size: 14.5px; line-height: 1.65; color: var(--muted); }
+.edit-state { margin-top: 4px; padding: 10px 14px; background: var(--surface-2); border-radius: 6px; font-size: 14.5px; line-height: 1.7; }
+.edit-state .edited { color: var(--hi); font-weight: 800; }
