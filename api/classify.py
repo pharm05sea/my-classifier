@@ -1,6 +1,7 @@
 """Gemini 분류 서버 함수 (Vercel).
 
-입력  : POST {"texts": ["개인정보를 가린 문장", ... 최대 10개]}
+입력  : POST {"texts": ["개인정보를 가린 문장", ... 최대 10개], "model": "(선택) 화면에서 고른 모델 이름"}
+        model 은 Google 모델 목록(GET /api/classify?models=1)에 있는 이름만 받는다. 없으면 기본 모델.
 출력  : {"results": [{"category","urgency","reason"} 또는 {"error": "이유"}, ...], "model": "..."}
         Gemini 호출 자체가 실패하면 HTTP 오류 코드와 {"error": "이유"} 를 돌려준다.
 
@@ -12,6 +13,7 @@ import json
 import os
 import re
 import socket
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -22,6 +24,7 @@ TIMEOUT_SEC = 60
 MAX_TEXTS = 10
 MAX_TEXT_LEN = 500
 MAX_BODY = 20000
+MODEL_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$")
 
 
 class ApiError(Exception):
@@ -84,11 +87,73 @@ def _match(value, names):
     return None
 
 
-def call_gemini(prompt):
+def default_model():
+    return os.environ.get("GEMINI_MODEL") or DEFAULT_MODEL
+
+
+# 화면에서 고를 수 있는 모델 목록. Google 에서 조회하고, 조회 결과에 있는 이름만 허용한다 (임의의 이름은 받지 않는다).
+_MODEL_CACHE = {"at": 0.0, "names": []}
+MODEL_CACHE_SEC = 600
+# 글을 분류하는 용도가 아닌 모델(그림·음성·임베딩 등)은 목록에서 뺀다
+_NON_TEXT_HINTS = ("embedding", "tts", "image", "audio", "live", "imagen", "veo", "robotics", "aqa")
+
+
+def list_models():
     key = os.environ.get("GEMINI_API_KEY")
     if not key:
         raise ApiError(503, "GEMINI_API_KEY 가 설정되지 않았습니다")
-    model = os.environ.get("GEMINI_MODEL") or DEFAULT_MODEL
+    now = time.time()
+    if _MODEL_CACHE["names"] and now - _MODEL_CACHE["at"] < MODEL_CACHE_SEC:
+        return _MODEL_CACHE["names"]
+    names = []
+    token = ""
+    try:
+        for _ in range(5):  # 쪽 단위로 최대 5번
+            url = "https://generativelanguage.googleapis.com/v1beta/models?pageSize=200"
+            if token:
+                url += "&pageToken=" + urllib.parse.quote(token, safe="")
+            req = urllib.request.Request(url, headers={"x-goog-api-key": key}, method="GET")
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                payload = json.loads(resp.read().decode("utf-8"))
+            for m in payload.get("models", []):
+                name = str(m.get("name", "")).replace("models/", "", 1)
+                methods = m.get("supportedGenerationMethods") or []
+                if (name.startswith("gemini") and "generateContent" in methods
+                        and not any(h in name for h in _NON_TEXT_HINTS) and MODEL_NAME_RE.match(name)):
+                    names.append(name)
+            token = payload.get("nextPageToken") or ""
+            if not token:
+                break
+    except Exception:
+        if _MODEL_CACHE["names"]:
+            return _MODEL_CACHE["names"]  # 새로 못 받으면 이전에 받은 목록을 쓴다
+        raise ApiError(502, "Gemini 모델 목록을 받지 못했습니다")
+    names = sorted(set(names))
+    if not names:
+        raise ApiError(502, "Gemini 모델 목록이 비어 있습니다")
+    _MODEL_CACHE["at"], _MODEL_CACHE["names"] = now, names
+    return names
+
+
+def pick_model(requested):
+    """요청에서 고른 모델 이름을 확인해 돌려준다. 안 골랐거나 기본 모델과 같으면 기본 모델."""
+    base = default_model()
+    if requested is None or requested == "":
+        return base
+    if not isinstance(requested, str) or not MODEL_NAME_RE.match(requested):
+        raise ApiError(400, "모델 이름이 올바르지 않습니다")
+    if requested == base:
+        return base
+    if requested not in list_models():
+        raise ApiError(400, "허용 목록에 없는 모델입니다: " + requested)
+    return requested
+
+
+def call_gemini(prompt, model=None):
+    key = os.environ.get("GEMINI_API_KEY")
+    if not key:
+        raise ApiError(503, "GEMINI_API_KEY 가 설정되지 않았습니다")
+    model = model or default_model()
     url = "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent" % urllib.parse.quote(model, safe="")
     body = {
         "contents": [{"role": "user", "parts": [{"text": prompt}]}],
@@ -162,7 +227,9 @@ def process(body_bytes):
         if not body_bytes or len(body_bytes) > MAX_BODY:
             raise ApiError(400, "요청 크기가 올바르지 않습니다")
         try:
-            texts = json.loads(body_bytes.decode("utf-8")).get("texts")
+            req = json.loads(body_bytes.decode("utf-8"))
+            texts = req.get("texts")
+            requested_model = req.get("model")
         except Exception:
             raise ApiError(400, "요청을 읽지 못했습니다")
         if not isinstance(texts, list) or not 1 <= len(texts) <= MAX_TEXTS:
@@ -170,8 +237,9 @@ def process(body_bytes):
         texts = [str(t).strip() for t in texts]
         if any(not t or len(t) > MAX_TEXT_LEN for t in texts):
             raise ApiError(400, "비어 있거나 %d자를 넘는 문장이 있습니다" % MAX_TEXT_LEN)
+        model = pick_model(requested_model)
         criteria = load_criteria()
-        raw, model = call_gemini(build_prompt(criteria, texts))
+        raw, model = call_gemini(build_prompt(criteria, texts), model)
         return 200, {"results": parse_results(raw, criteria, len(texts)), "model": model}
     except ApiError as e:
         return e.status, {"error": e.reason}
@@ -190,8 +258,13 @@ class handler(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def do_GET(self):
-        self._send(200, {"ok": True, "gemini_configured": bool(os.environ.get("GEMINI_API_KEY")),
-                         "model": os.environ.get("GEMINI_MODEL") or DEFAULT_MODEL})
+        info = {"ok": True, "gemini_configured": bool(os.environ.get("GEMINI_API_KEY")), "model": default_model()}
+        if "models=1" in (self.path or "").split("?", 1)[-1].split("&"):
+            try:
+                info["models"] = list_models()
+            except ApiError as e:
+                info["models_error"] = e.reason
+        self._send(200, info)
 
     def do_POST(self):
         try:
