@@ -1,0 +1,10 @@
+app/
+reports/
+scripts/
+CLAUDE.md
+데이터명세.md
+배포_안내.md
+data/practice.json
+data/practice_추가.json
+data/_만든의도.json
+data/정답_붙이기.md

@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NPD 안건 분류기 (규칙 기준선)</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>NPD 안건 분류기</h1>
+    <p class="sub">Gemini AI가 분류하고, AI가 실패하면 규칙이 대신 분류합니다.</p>
+  </header>
+
+  <div id="load-note" class="load-note" role="alert" hidden></div>
+
+  <nav class="tabs" role="tablist" aria-label="화면 선택">
+    <a id="tab-classify" href="#classify" role="tab" aria-selected="true">NPD 안건 분류</a>
+    <a id="tab-grade" href="#grade" role="tab" aria-selected="false">규칙 정확도 채점</a>
+  </nav>
+
+  <main>
+    <section id="view-classify" class="panel" role="tabpanel" aria-labelledby="tab-classify">
+      <label class="lbl" for="txt">안건 또는 미해결 이슈 (한 줄)</label>
+      <textarea id="txt" maxlength="500" placeholder="예: 인체적용시험 중간 결과 나왔는데 1차 지표 유의성이 애매함. 통계팀 재분석중."></textarea>
+      <div class="row">
+        <button id="go" class="btn primary" type="button">분류하기</button>
+      </div>
+      <div id="status" class="hint" role="status" aria-live="polite"></div>
+      <div id="result" class="result" hidden></div>
+      <p class="foot">입력한 문장과 분류 결과는 저장하지 않습니다. 이름·전화번호·사번·이메일은 브라우저에서 가린 뒤 그 문장만 AI 서버로 보냅니다. 이름은 직급이 붙은 경우만 가려집니다.</p>
+    </section>
+
+    <section id="view-grade" class="panel" role="tabpanel" aria-labelledby="tab-grade" hidden>
+      <p class="hint">팀장님이 정한 정답 30건과 규칙·AI의 판정을 견줍니다. 「AI로 채점」은 규칙 채점도 함께 해서 같은 30건으로 나란히 비교하고, AI에는 문장을 10개씩 3번 보냅니다.</p>
+      <div class="row">
+        <button id="grade-btn" class="btn" type="button">규칙으로 채점</button>
+        <button id="ai-grade-btn" class="btn primary" type="button">AI로 채점</button>
+        <button id="dl-btn" class="btn" type="button" hidden>AI 채점 결과 내려받기</button>
+      </div>
+      <div id="grade-status" class="hint" role="status" aria-live="polite"></div>
+      <div id="grade-out" hidden></div>
+    </section>
+  </main>
+</div>
+<script src="mask.js"></script>
+<script src="rules.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
