@@ -38,18 +38,12 @@
   window.addEventListener("hashchange", showTab);
 
   /* ---------- AI 서버 호출 ---------- */
-  // 서버에 팀 코드(TEAM_CODE)를 걸어 둔 경우, 팀 화면(index.html)에서 입력한 코드를 함께 보낸다
-  function teamHeaders() {
-    var h = { "Content-Type": "application/json" };
-    try { var c = sessionStorage.getItem("npd_team_code"); if (c) h["X-Team-Code"] = c; } catch (e) {}
-    return h;
-  }
   // 성공: {ok:true, results:[...], model}  실패: {ok:false, error:"이유"}
   function callAI(texts) {
     var ctl = new AbortController();
     var timer = setTimeout(function () { ctl.abort(); }, 75000);
     return fetch("/api/classify", {
-      method: "POST", headers: teamHeaders(),
+      method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ texts: texts }), signal: ctl.signal
     }).then(function (r) {
       return r.text().then(function (t) {

@@ -194,9 +194,6 @@ class handler(BaseHTTPRequestHandler):
                          "model": os.environ.get("GEMINI_MODEL") or DEFAULT_MODEL})
 
     def do_POST(self):
-        need = os.environ.get("TEAM_CODE")   # 선택: 넣어 두면 팀 코드를 아는 사람만 AI를 쓸 수 있다
-        if need and self.headers.get("X-Team-Code") != need:
-            return self._send(401, {"error": "팀 코드가 필요합니다"})
         try:
             length = int(self.headers.get("Content-Length") or 0)
         except ValueError:

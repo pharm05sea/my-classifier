@@ -3,7 +3,6 @@
 저장소: Upstash Redis (Vercel Storage → Upstash for Redis 를 프로젝트에 연결하면 환경 변수가 자동으로 생김)
   주소  UPSTASH_REDIS_REST_URL  또는 KV_REST_API_URL
   토큰  UPSTASH_REDIS_REST_TOKEN 또는 KV_REST_API_TOKEN
-선택: TEAM_CODE 환경 변수를 넣으면 요청 머리글 X-Team-Code 가 같아야만 읽고 쓸 수 있다.
 
 요청
   GET  /api/items                          → {"items": [...]}
@@ -144,12 +143,9 @@ def list_items():
     return items
 
 
-def process(method, body_bytes, team_code_header):
+def process(method, body_bytes):
     """(HTTP 코드, 응답 딕셔너리)"""
     try:
-        need = os.environ.get("TEAM_CODE")
-        if need and team_code_header != need:
-            raise ApiError(401, "팀 코드가 필요합니다")
         if method == "GET":
             return 200, {"items": list_items()}
         if not body_bytes or len(body_bytes) > MAX_BODY:
@@ -201,7 +197,7 @@ class handler(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def do_GET(self):
-        self._send(*process("GET", b"", self.headers.get("X-Team-Code")))
+        self._send(*process("GET", b""))
 
     def do_POST(self):
         try:
@@ -209,7 +205,7 @@ class handler(BaseHTTPRequestHandler):
         except ValueError:
             length = 0
         body = self.rfile.read(length) if 0 < length <= MAX_BODY else b""
-        self._send(*process("POST", body, self.headers.get("X-Team-Code")))
+        self._send(*process("POST", body))
 
     def log_message(self, *args):
         pass  # 문장 내용이 기록되지 않도록 요청 로그를 끈다
