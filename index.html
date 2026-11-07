@@ -4,6 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>NPD 안건 분류기 (규칙 기준선)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nanum+Gothic:wght@400;700;800&display=swap">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -17,6 +20,7 @@
 
   <nav class="tabs" role="tablist" aria-label="화면 선택">
     <a id="tab-classify" href="#classify" role="tab" aria-selected="true">NPD 안건 분류</a>
+    <a id="tab-dashboard" href="#dashboard" role="tab" aria-selected="false">업무 진행 대시보드</a>
     <a id="tab-grade" href="#grade" role="tab" aria-selected="false">규칙 정확도 채점</a>
   </nav>
 
@@ -25,11 +29,16 @@
       <label class="lbl" for="txt">안건 또는 미해결 이슈 (한 줄)</label>
       <textarea id="txt" maxlength="500" placeholder="예: 인체적용시험 중간 결과 나왔는데 1차 지표 유의성이 애매함. 통계팀 재분석중."></textarea>
       <div class="row">
+        <button id="ex" class="btn" type="button">예시 문장 입력하기</button>
         <button id="go" class="btn primary" type="button">분류하기</button>
       </div>
       <div id="status" class="hint" role="status" aria-live="polite"></div>
       <div id="result" class="result" hidden></div>
       <p class="foot">입력한 문장과 분류 결과는 저장하지 않습니다. 이름·전화번호·사번·이메일은 브라우저에서 가린 뒤 그 문장만 AI 서버로 보냅니다. 이름은 직급이 붙은 경우만 가려집니다.</p>
+    </section>
+
+    <section id="view-dashboard" class="panel" role="tabpanel" aria-labelledby="tab-dashboard" hidden>
+      <p class="hint">기준 파일을 읽는 중입니다.</p>
     </section>
 
     <section id="view-grade" class="panel" role="tabpanel" aria-labelledby="tab-grade" hidden>

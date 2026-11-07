@@ -5,7 +5,8 @@
 (function () {
   "use strict";
   var $ = function (id) { return document.getElementById(id); };
-  var S = { criteria: null, keywords: null, ready: false, gold: null, ruleRows: null, aiRuns: [], busy: false };
+  var S = { criteria: null, keywords: null, ready: false, gold: null, ruleRows: null, aiRuns: [], busy: false,
+            items: [], seq: 0, status: null, dash: { cat: "", urg: "", stat: "", open: false } };   // items: 대시보드용, 이 화면을 연 동안만 메모리에 보관
   var BATCH = 10;
 
   function el(tag, cls, text) {
@@ -25,7 +26,7 @@
   function names(list) { return list.map(function (x) { return x["이름"]; }); }
 
   /* ---------- 탭 ---------- */
-  var TABS = ["classify", "grade"];
+  var TABS = ["classify", "dashboard", "grade"];
   function showTab() {
     var t = (location.hash || "").replace("#", "");
     if (TABS.indexOf(t) < 0) t = "classify";
@@ -88,6 +89,31 @@
     );
     box.hidden = false;
   }
+  // 예시 문장: keywords.json 의 예시(data/practice.json 에서 뽑은 연습 문장)를 차례로 돌려 가며 넣는다.
+  var exampleIdx = 0;
+  function exampleList() {
+    var seen = {}, out = [];
+    ["칸", "긴급도"].forEach(function (part) {
+      Object.keys(S.keywords[part]).forEach(function (key) {
+        (S.keywords[part][key]["예시"] || []).forEach(function (e) {
+          if (!seen[e.id]) { seen[e.id] = true; out.push(e); }
+        });
+      });
+    });
+    return out;
+  }
+  function onExample() {
+    var status = $("status");
+    if (!S.ready) { status.textContent = "기준 파일을 아직 읽지 못했습니다."; return; }
+    var list = exampleList();
+    if (!list.length) { status.textContent = "예시 문장이 없습니다."; return; }
+    var i = exampleIdx++ % list.length;
+    $("txt").value = list[i]["문장"];
+    $("txt").focus();
+    $("result").hidden = true;
+    status.textContent = "예시 문장 " + (i + 1) + "/" + list.length + " (연습 문장 " + list[i].id + ")을 넣었습니다. 「분류하기」를 누르세요.";
+  }
+
   function onClassify() {
     var status = $("status"), btn = $("go");
     var text = $("txt").value.trim();
@@ -99,12 +125,17 @@
     callAI([masked]).then(function (res) {
       var ai = res.ok ? res.results[0] : null;
       var err = res.ok ? invalidReason(ai) : res.error;
-      if (!err) renderResult(masked, ai, { mode: "ai", model: res.model });
-      else renderResult(masked, window.NpdRules.classify(masked, S.criteria, S.keywords), { mode: "rule", error: err });
+      var shown = !err ? ai : window.NpdRules.classify(masked, S.criteria, S.keywords);
+      var info = !err ? { mode: "ai", model: res.model } : { mode: "rule", error: err };
+      renderResult(masked, shown, info);
+      addItem(masked, shown, info);
       status.textContent = "";
     }).catch(function () {
       // 어떤 오류가 나도 분류가 멈추지 않게 규칙으로 처리한다
-      renderResult(masked, window.NpdRules.classify(masked, S.criteria, S.keywords), { mode: "rule", error: "예상하지 못한 오류" });
+      var r = window.NpdRules.classify(masked, S.criteria, S.keywords);
+      var info = { mode: "rule", error: "예상하지 못한 오류" };
+      renderResult(masked, r, info);
+      addItem(masked, r, info);
       status.textContent = "";
     }).then(function () { S.busy = false; btn.disabled = false; });
   }
@@ -333,19 +364,204 @@
     setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
   }
 
+  /* ---------- 3. 업무 진행 대시보드 (이 화면을 연 동안만 메모리에 보관, 어디에도 저장하지 않음) ---------- */
+  function stageNames() { return names(S.status["처리상태"]); }
+  function doneStage() { var s = stageNames(); return s[s.length - 1]; }   // 마지막 단계가 완료
+
+  function addItem(masked, r, info) {
+    var rec = { text: masked, category: r.category, urgency: r.urgency, reason: r.reason, mode: info.mode, model: info.model || null, at: Date.now() };
+    var same = S.items.filter(function (x) { return x.text === masked; })[0];
+    if (same) Object.assign(same, rec);                  // 같은 문장을 다시 분류해도 처리상태는 그대로 둔다
+    else { rec.id = ++S.seq; rec.status = stageNames()[0]; S.items.push(rec); }
+    renderDashboard();
+  }
+
+  function buildDashboard() {
+    var v = $("view-dashboard");
+    v.textContent = "";
+    function filterSelect(id, label, opts, key) {
+      var s = el("select"); s.id = id; s.setAttribute("aria-label", label);
+      s.append(new Option(label + " 전체", ""));
+      opts.forEach(function (o) { s.append(new Option(o, o)); });
+      s.addEventListener("change", function () { S.dash[key] = s.value; renderDashboard(); });
+      return s;
+    }
+    var fill = el("button", "btn", "예시 문장으로 채워 보기"); fill.type = "button"; fill.id = "dash-fill";
+    fill.addEventListener("click", onFillExamples);
+    var clear = el("button", "btn", "모두 지우기"); clear.type = "button"; clear.id = "dash-clear";
+    var armed = false;
+    clear.addEventListener("click", function () {
+      if (!S.items.length) return;
+      if (!armed) {
+        armed = true; clear.textContent = "정말 지우기";
+        setTimeout(function () { armed = false; clear.textContent = "모두 지우기"; }, 3000);
+      } else { armed = false; clear.textContent = "모두 지우기"; S.items = []; renderDashboard(); }
+    });
+    var openOnly = el("input"); openOnly.type = "checkbox"; openOnly.id = "dash-open";
+    openOnly.addEventListener("change", function () { S.dash.open = openOnly.checked; renderDashboard(); });
+    var openLabel = el("label", "chk", null, openOnly, " 미해결만 (" + doneStage() + " 제외)"); openLabel.setAttribute("for", "dash-open");
+    var tiles = el("div", "tiles"); tiles.id = "dash-tiles";
+    var progress = el("div", "progress"); progress.id = "dash-progress";
+    var matrix = el("div", "tbl-scroll"); matrix.id = "dash-matrix";
+    var count = el("p", "hint"); count.id = "dash-count";
+    var list = el("ul", "wrongs"); list.id = "dash-list";
+    var msg = el("p", "hint"); msg.id = "dash-msg";
+    v.append(
+      el("h2", null, "업무 진행 대시보드"),
+      el("p", "hint", "「NPD 안건 분류」에서 분류한 안건이 업무로 쌓입니다. 안건마다 처리상태(" + stageNames().join(" → ") + ")를 목록에서 직접 바꿔 가며 진행 상황을 봅니다. 처리상태는 분류기가 정하지 않고 사람이 정합니다."),
+      el("p", "hint", "이 화면을 연 동안만 보관하고, 새로고침하거나 닫으면 사라집니다(입력 문장을 저장하지 않는 원칙). 개인정보를 가린 문장만 담습니다."),
+      el("div", "row", null, fill, clear), msg,
+      tiles, progress,
+      el("h3", null, "칸별 진행 현황"), matrix,
+      el("h3", null, "업무 목록"),
+      el("div", "filters", null,
+        filterSelect("dash-cat", "칸", names(S.criteria["칸"]), "cat"),
+        filterSelect("dash-urg", "긴급도", names(S.criteria["긴급도"]), "urg"),
+        filterSelect("dash-stat", "처리상태", stageNames(), "stat"),
+        openLabel),
+      count, list
+    );
+  }
+
+  function tile(n, label, alert, small) {
+    return el("div", "tile" + (alert && n ? " alert" : ""), null, el("div", "n" + (small ? " sm" : ""), String(n)), el("div", "l", label));
+  }
+
+  function renderDashboard() {
+    var tab = $("tab-dashboard");
+    tab.textContent = "업무 진행 대시보드" + (S.items.length ? " (" + S.items.length + ")" : "");
+    if (!S.ready || !$("dash-tiles")) return;
+    var cats = names(S.criteria["칸"]), urgs = names(S.criteria["긴급도"]), stages = stageNames();
+    var done = doneStage(), worstCat = S.criteria["판정순서"][0], topUrg = urgs[0];
+    var items = S.items, n = items.length;
+    function byStage(s) { return items.filter(function (x) { return x.status === s; }).length; }
+    var doneN = byStage(done);
+    var urgentOpen = items.filter(function (x) { return x.urgency === topUrg && x.status !== done; }).length;
+
+    // 요약 타일: 전체, 단계별 건수, 긴급 미해결
+    var tiles = $("dash-tiles"); tiles.textContent = "";
+    tiles.append(tile(n, "전체 업무"));
+    stages.forEach(function (s) { tiles.append(tile(byStage(s), s)); });
+    tiles.append(tile(urgentOpen, "긴급 " + topUrg + " · 미해결", true));
+
+    // 완료율 + 단계별 누적 막대
+    var pr = $("dash-progress"); pr.textContent = "";
+    pr.append(el("div", "rate", null, el("b", null, "완료율 " + (n ? Math.round(doneN / n * 100) : 0) + "%"), " (" + doneN + " / " + n + ")"));
+    var stack = el("div", "stack");
+    stages.forEach(function (s, i) {
+      var c = byStage(s);
+      if (!c) return;
+      var seg = el("span", "seg s" + Math.min(i, 3)); seg.style.width = (c / n * 100) + "%"; seg.title = s + " " + c + "건";
+      stack.append(seg);
+    });
+    pr.append(stack);
+    var legend = el("div", "legend");
+    stages.forEach(function (s, i) { legend.append(el("span", null, null, el("i", "dot s" + Math.min(i, 3)), s + " " + byStage(s))); });
+    pr.append(legend);
+
+    // 칸별 진행 현황 표: 칸 × 처리상태
+    var cnt = {};
+    cats.forEach(function (c) { cnt[c] = {}; stages.forEach(function (s) { cnt[c][s] = 0; }); });
+    items.forEach(function (x) { if (cnt[x.category] && cnt[x.category][x.status] != null) cnt[x.category][x.status]++; });
+    var table = el("table", "cmp matrix");
+    var hr = el("tr", null, null, el("th", null, "칸"));
+    stages.forEach(function (s) { hr.append(el("th", "num", s)); });
+    hr.append(el("th", "num", "합계"), el("th", "num", "미해결"));
+    table.append(el("thead", null, null, hr));
+    var body = el("tbody"), colTotals = stages.map(function () { return 0; });
+    cats.forEach(function (c) {
+      var tr = el("tr", null, null, el("th", null, c)), sum = 0;
+      stages.forEach(function (s, i) {
+        var k = cnt[c][s]; sum += k; colTotals[i] += k;
+        var td = el("td", "num", k ? String(k) : "·");
+        if (k) td.style.background = "color-mix(in srgb, var(" + (s === done ? "--ok" : "--accent") + ") " + Math.round(14 + 40 * k / Math.max(1, n)) + "%, transparent)";
+        tr.append(td);
+      });
+      var open = sum - cnt[c][done];
+      tr.append(el("td", "num tot", String(sum)), el("td", "num tot" + (open && c === worstCat ? " bad-t" : ""), String(open)));
+      body.append(tr);
+    });
+    var total = el("tr", "foot", null, el("th", null, "합계"));
+    colTotals.forEach(function (k) { total.append(el("td", "num tot", String(k))); });
+    total.append(el("td", "num tot", String(n)), el("td", "num tot", String(n - doneN)));
+    body.append(total);
+    table.append(body);
+    var m = $("dash-matrix"); m.textContent = ""; m.append(table);
+
+    // 업무 목록: 미해결 먼저, 그다음 긴급도, 같으면 최근 순
+    var f = S.dash;
+    var shown = items.filter(function (x) {
+      return (!f.cat || x.category === f.cat) && (!f.urg || x.urgency === f.urg) && (!f.stat || x.status === f.stat) && (!f.open || x.status !== done);
+    });
+    shown.sort(function (a, b) {
+      return (a.status === done ? 1 : 0) - (b.status === done ? 1 : 0) || urgs.indexOf(a.urgency) - urgs.indexOf(b.urgency) || b.at - a.at;
+    });
+    $("dash-count").textContent = n ? shown.length + "건 표시 / 전체 " + n + "건 (미해결 먼저, 긴급도 순, 같으면 최근 순)" : "";
+    var ul = $("dash-list"); ul.textContent = "";
+    if (!shown.length) {
+      ul.append(el("li", "empty", n ? "조건에 맞는 업무가 없습니다. 필터를 바꿔 보세요." : "아직 업무가 없습니다. 「NPD 안건 분류」에서 문장을 분류하거나, 위의 「예시 문장으로 채워 보기」를 눌러 보세요."));
+    }
+    shown.forEach(function (x) {
+      var sel = el("select"); sel.setAttribute("aria-label", "처리상태");
+      stages.forEach(function (s) { var o = new Option(s, s); if (s === x.status) o.selected = true; sel.append(o); });
+      sel.addEventListener("change", function () { x.status = sel.value; renderDashboard(); });
+      var del = el("button", "btn sm", "삭제"); del.type = "button";
+      del.addEventListener("click", function () { S.items = S.items.filter(function (y) { return y.id !== x.id; }); renderDashboard(); });
+      var tags = el("div", "tags");
+      tags.append(
+        el("span", "chip u-" + urgs.indexOf(x.urgency), "긴급도 " + x.urgency),
+        el("span", "tag" + (x.category === worstCat ? " bad" : ""), x.category),
+        el("span", "tag", x.mode === "ai" ? "Gemini AI 분류" : "규칙 분류"),
+        el("span", "tag", new Date(x.at).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" }))
+      );
+      ul.append(el("li", "wrong item" + (x.urgency === topUrg && x.status !== done ? " hi" : "") + (x.status === done ? " done" : ""), null,
+        el("div", "src", x.text), tags, el("div", "rsn", "판정 이유: " + x.reason),
+        el("div", "row", null, el("span", "hint", "처리상태"), sel, del)));
+    });
+  }
+
+  // 예시 문장(keywords.json의 연습 문장 예시)을 한꺼번에 분류해 대시보드를 채운다
+  async function onFillExamples() {
+    var msg = $("dash-msg"), btn = $("dash-fill");
+    if (!S.ready || S.busy) return;
+    var examples = exampleList();
+    if (!examples.length) { msg.textContent = "예시 문장이 없습니다."; return; }
+    S.busy = true; btn.disabled = true;
+    try {
+      var texts = examples.map(function (e) { return window.NpdMask.mask(e["문장"]); });
+      for (var start = 0; start < texts.length; start += BATCH) {
+        var chunk = texts.slice(start, start + BATCH);
+        msg.textContent = "예시 문장을 분류하는 중… " + start + "/" + texts.length;
+        var res = await callAI(chunk);
+        chunk.forEach(function (t, k) {
+          var r = res.ok ? res.results[k] : null;
+          var err = res.ok ? invalidReason(r) : res.error;
+          if (!err) addItem(t, r, { mode: "ai", model: res.model });
+          else addItem(t, window.NpdRules.classify(t, S.criteria, S.keywords), { mode: "rule", error: err });
+        });
+      }
+      msg.textContent = "예시 문장 " + texts.length + "개를 분류했습니다. 처리상태는 신규로 시작하니 목록에서 바꿔 보세요.";
+    } catch (e) {
+      msg.textContent = "예시 문장을 채우다 오류가 났습니다. 다시 눌러 주세요.";
+    }
+    S.busy = false; btn.disabled = false;
+  }
+
   /* ---------- 시작 ---------- */
   function boot() {
     showTab();
+    $("ex").addEventListener("click", onExample);
     $("go").addEventListener("click", onClassify);
     $("grade-btn").addEventListener("click", onRuleGrade);
     $("ai-grade-btn").addEventListener("click", onAIGrade);
     $("dl-btn").addEventListener("click", onDownload);
-    Promise.all([getJson("criteria.json"), getJson("keywords.json")]).then(function (v) {
-      S.criteria = v[0]; S.keywords = v[1]; S.ready = true;
+    Promise.all([getJson("criteria.json"), getJson("keywords.json"), getJson("status.json")]).then(function (v) {
+      S.criteria = v[0]; S.keywords = v[1]; S.status = v[2]; S.ready = true;
       $("load-note").hidden = true;
+      buildDashboard(); renderDashboard();
     }).catch(function () {
       var n = $("load-note");
-      n.textContent = "criteria.json 또는 keywords.json 을 읽지 못했습니다. 파일을 그냥 열면 읽을 수 없습니다. 이 폴더에서 서버를 켜고(python -m http.server 8000) http://localhost:8000/ 로 여세요.";
+      n.textContent = "criteria.json, keywords.json, status.json 중 하나를 읽지 못했습니다. 파일을 그냥 열면 읽을 수 없습니다. 이 폴더에서 서버를 켜고(python -m http.server 8000) http://localhost:8000/ 로 여세요.";
       n.hidden = false;
     });
   }

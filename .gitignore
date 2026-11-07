@@ -4,3 +4,10 @@
 .vercel/
 __pycache__/
 *.pyc
+
+# 정답 파일과 정답이 들어간 파일은 공개 저장소에 올리지 않는다 (내 컴퓨터에만 둔다)
+data/answer.json
+data/_만든의도.json
+data/정답_붙이기.md
+app/
+reports/평가_20261107_1137.md
