@@ -3,65 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>NPD 안건 분류기 (규칙 기준선)</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nanum+Gothic:wght@400;700;800&display=swap">
-<link rel="stylesheet" href="style.css">
+<title>정확도 점검으로 이동</title>
+<meta http-equiv="refresh" content="0; url=index.html#grade">
+<script>location.replace("index.html#grade");</script>
 </head>
 <body>
-<div class="wrap">
-  <header>
-    <h1>NPD 안건 분류기</h1>
-    <p class="sub">Gemini AI가 분류하고, AI가 실패하면 규칙이 대신 분류합니다.</p>
-  </header>
-
-  <div id="load-note" class="load-note" role="alert" hidden></div>
-
-  <nav class="tabs" role="tablist" aria-label="화면 선택">
-    <a id="tab-classify" href="#classify" role="tab" aria-selected="true">NPD 안건 분류</a>
-    <a id="tab-dashboard" href="#dashboard" role="tab" aria-selected="false">업무 진행 대시보드</a>
-    <a id="tab-grade" href="#grade" role="tab" aria-selected="false">규칙 정확도 채점</a>
-    <a href="index.html#list" class="back-link">← 팀 목록 화면</a>
-  </nav>
-
-  <main>
-    <section id="view-classify" class="split" role="tabpanel" aria-labelledby="tab-classify">
-    <div class="panel" id="classify-main">
-      <label class="lbl" for="txt">안건 또는 미해결 이슈 (한 줄)</label>
-      <textarea id="txt" maxlength="500" placeholder="예: 인체적용시험 중간 결과 나왔는데 1차 지표 유의성이 애매함. 통계팀 재분석중."></textarea>
-      <div class="row">
-        <button id="ex" class="btn" type="button">예시 문장 입력하기</button>
-        <button id="go" class="btn primary" type="button">분류하기</button>
-      </div>
-      <div id="status" class="hint" role="status" aria-live="polite"></div>
-      <div id="result" class="result" hidden></div>
-      <p class="foot">입력한 문장과 분류 결과는 저장하지 않습니다. 이름·전화번호·사번·이메일은 브라우저에서 가린 뒤 그 문장만 AI 서버로 보냅니다. 이름은 직급이 붙은 경우만 가려집니다.</p>
-    </div>
-    <aside class="panel side" id="classify-side" aria-labelledby="edit-title">
-      <h2 id="edit-title">분류 수정</h2>
-      <div id="edit-body"><p class="hint">기준 파일을 읽는 중입니다.</p></div>
-    </aside>
-    </section>
-
-    <section id="view-dashboard" class="panel" role="tabpanel" aria-labelledby="tab-dashboard" hidden>
-      <p class="hint">기준 파일을 읽는 중입니다.</p>
-    </section>
-
-    <section id="view-grade" class="panel" role="tabpanel" aria-labelledby="tab-grade" hidden>
-      <p class="hint">팀장님이 정한 정답 30건과 규칙·AI의 판정을 견줍니다. 「AI로 채점」은 규칙 채점도 함께 해서 같은 30건으로 나란히 비교하고, AI에는 문장을 10개씩 3번 보냅니다.</p>
-      <div class="row">
-        <button id="grade-btn" class="btn" type="button">규칙으로 채점</button>
-        <button id="ai-grade-btn" class="btn primary" type="button">AI로 채점</button>
-        <button id="dl-btn" class="btn" type="button" hidden>AI 채점 결과 내려받기</button>
-      </div>
-      <div id="grade-status" class="hint" role="status" aria-live="polite"></div>
-      <div id="grade-out" hidden></div>
-    </section>
-  </main>
-</div>
-<script src="mask.js"></script>
-<script src="rules.js"></script>
-<script src="app.js"></script>
+<p>정확도 점검은 첫 화면의 「정확도 점검」 탭으로 합쳤습니다. <a href="index.html#grade">여기로 이동</a></p>
 </body>
 </html>

@@ -443,6 +443,25 @@ button.tab-total:focus-visible { outline: 2px solid var(--accent); outline-offse
 .theme-seg button:not(.on):hover { color: var(--accent); }
 .theme-seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 
+
+/* 정확도 점검 탭 */
+table.cmp { min-width: 520px; }
+table.cmp th:first-child { white-space: normal; color: var(--ink); font-size: 14px; font-weight: 700; }
+table.cmp td { font-variant-numeric: tabular-nums; font-weight: 700; }
+.okt { color: var(--ok); font-weight: 700; }
+.bad-t { color: var(--hi); font-weight: 700; }
+ul.wrongs { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+li.wrong { background: var(--surface); border: 1.5px solid var(--line); border-radius: 12px; padding: 12px 14px; font-size: 14.5px; }
+li.wrong .src { font-weight: 700; margin-bottom: 4px; overflow-wrap: anywhere; }
+li.wrong .diff { padding: 3px 0; border-top: 0; }
+li.wrong .rsn { color: var(--muted); font-size: 13.5px; margin-top: 4px; }
+.tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+.tag { font-size: 12.5px; padding: 1px 9px; border-radius: 6px; background: var(--surface-2); border: 1px solid var(--line); }
+.tag.bad { background: var(--hi-soft); color: var(--hi); border-color: transparent; font-weight: 700; }
+dl.cond { display: grid; grid-template-columns: max-content 1fr; gap: 6px 14px; font-size: 14px; margin: 0; }
+dl.cond dt { color: var(--muted); font-weight: 700; }
+dl.cond dd { margin: 0; overflow-wrap: anywhere; }
+@media (max-width: 560px) { dl.cond { grid-template-columns: 1fr; } dl.cond dd { margin-bottom: 6px; } }
 </style>
 
 </head>
@@ -460,7 +479,7 @@ button.tab-total:focus-visible { outline: 2px solid var(--accent); outline-offse
     <a href="#classify" data-tab="classify">분류하기</a>
     <a href="#list" data-tab="list">팀 목록</a>
     <a href="#rules" data-tab="rules">분류 기준</a>
-    <a href="grade.html#grade" id="tab-eval" class="ext" title="규칙·Gemini 정확도 채점 화면으로 이동">정확도 점검</a>
+    <a href="#grade" data-tab="grade">정확도 점검</a>
     <button type="button" id="tab-total" class="tab-total" aria-expanded="false" aria-controls="status-panel" title="눌러서 구분별 현황(완료 포함) 보기"></button>
   </nav>
   <div id="status-panel" class="status-panel" hidden></div>
@@ -468,6 +487,7 @@ button.tab-total:focus-visible { outline: 2px solid var(--accent); outline-offse
     <section id="view-classify" hidden></section>
     <section id="view-list" hidden></section>
     <section id="view-rules" hidden></section>
+    <section id="view-grade" hidden></section>
   </main>
 </div>
 <div class="toast" id="toast" role="status" hidden></div>
@@ -1034,8 +1054,228 @@ function renderRules() {
     h("p", { class: "hint mt", text: "처리상태는 문장에 나타난 진행 상황만으로 판단합니다. 분명하지 않으면 완료로 처리하지 않고 추가확인으로 표시합니다." })));
 }
 
-/* ===================== 화면 전환 (정확도 점검은 grade.html 로 이동) ===================== */
-var TABS = ["classify", "list", "rules"];
+/* ===================== 화면: 정확도 점검 (정답 30건으로 규칙·Gemini 채점) =====================
+   정답(data/answer.json)은 채점 버튼을 누를 때만 읽는다. 규칙·분류 기준을 만드는 데에는 쓰지 않는다. 채점 내역은 저장하지 않는다(내려받기만). */
+var G = { gold: null, ruleRows: null, aiRuns: [], busy: false };
+var GBATCH = 10;
+function gPct(n, d) { return (n / d * 100).toFixed(1) + "%"; }
+function loadGold() {
+  return G.gold ? Promise.resolve(G.gold) : getJ("data/answer.json").then(function (g) { G.gold = g; return g; });
+}
+function gRuleRows(gold) {
+  return gold.map(function (g) {
+    var r = window.NpdRules.classify(window.NpdMask.mask(g.text), CRITERIA, KEYWORDS);
+    return { fail: false, category: r.category, urgency: r.urgency, reason: r.reason };
+  });
+}
+function gMetrics(rows, gold) {
+  var worstCat = CRITERIA["판정순서"][0];   // 놓치면 안전·법규 리스크로 이어지는 칸
+  var m = { n: rows.length, cat: 0, urg: 0, both: 0, fail: 0, wrong: 0, worstTotal: 0, worstMiss: 0, worstFail: 0, worstCat: worstCat };
+  rows.forEach(function (r, i) {
+    var g = gold[i], isWorst = g["칸"] === worstCat;
+    if (isWorst) m.worstTotal++;
+    if (r.fail) { m.fail++; if (isWorst) m.worstFail++; return; }
+    var c = r.category === g["칸"], u = r.urgency === g["긴급도"];
+    if (c) m.cat++;
+    if (u) m.urg++;
+    if (c && u) m.both++; else m.wrong++;
+    if (isWorst && !c) m.worstMiss++;
+  });
+  return m;
+}
+async function gCallAI(texts) {
+  try {
+    var ctl = new AbortController(), tm = setTimeout(function () { ctl.abort(); }, 75000);
+    var r = await fetch("/api/classify", { method: "POST", headers: JSON_HEADERS, body: JSON.stringify({ texts: texts }), signal: ctl.signal });
+    clearTimeout(tm);
+    var t = await r.text(), j = null;
+    try { j = JSON.parse(t); } catch (e) { /* JSON 아님 */ }
+    if (!r.ok || !j) return { ok: false, error: (j && j.error) || ("AI 서버 응답 오류 (HTTP " + r.status + ")") };
+    if (!Array.isArray(j.results) || j.results.length !== texts.length) return { ok: false, error: "AI 서버 응답 형식 오류" };
+    return { ok: true, results: j.results, model: j.model };
+  } catch (e) { return { ok: false, error: e && e.name === "AbortError" ? "AI 응답 시간 초과" : "AI 서버에 연결하지 못했습니다" }; }
+}
+function gSetBusy(on) { G.busy = on; $("#grade-btn").disabled = on; $("#ai-grade-btn").disabled = on; }
+function gStatus(msg) { var e = $("#grade-status"); if (e) e.textContent = msg; }
+var GOLD_ERR = "data/answer.json 을 읽지 못했습니다. 잠시 뒤 다시 눌러 주세요.";
+
+async function onRuleGrade() {
+  if (G.busy) return;
+  gSetBusy(true); gStatus("규칙으로 채점하는 중입니다.");
+  try { var gold = await loadGold(); G.ruleRows = gRuleRows(gold); renderGradeOut(); gStatus(""); }
+  catch (e) { gStatus(GOLD_ERR); }
+  gSetBusy(false);
+}
+async function onAIGrade() {
+  if (G.busy) return;
+  gSetBusy(true);
+  try {
+    var gold = await loadGold();
+    G.ruleRows = gRuleRows(gold);                       // 같은 30개를 규칙으로도 채점해 나란히 비교
+    var masked = gold.map(function (g) { return window.NpdMask.mask(g.text); });
+    var rows = [], model = null, requests = 0;
+    gStatus("AI 채점 중… 0/" + gold.length);
+    for (var start = 0; start < gold.length; start += GBATCH) {
+      var end = Math.min(start + GBATCH, gold.length);
+      var res = await gCallAI(masked.slice(start, end));
+      requests++;
+      for (var k = start; k < end; k++) {
+        var r = res.ok ? res.results[k - start] : null;
+        var err = res.ok ? invalidAI(r) : res.error;
+        rows.push(err ? { fail: true, error: err } : { fail: false, category: r.category, urgency: r.urgency, reason: r.reason });
+      }
+      if (res.ok && res.model) model = res.model;
+      gStatus("AI 채점 중… " + end + "/" + gold.length);
+    }
+    G.aiRuns.push({ rows: rows, model: model, when: new Date(), requests: requests });
+    renderGradeOut();
+    gStatus("AI 채점 완료 " + gold.length + "/" + gold.length + " (응답 실패 " + rows.filter(function (r) { return r.fail; }).length + "건)");
+  } catch (e) { gStatus(G.gold ? "AI 채점 중 오류가 났습니다. 다시 눌러 주세요." : GOLD_ERR); }
+  gSetBusy(false);
+}
+
+function gCmpTable(rm, am) {
+  function row(label, a, b) { return h("tr", null, h("th", null, label), h("td", null, a), h("td", null, b)); }
+  function frac(x, n) { return x + " / " + n + " (" + gPct(x, n) + ")"; }
+  var none = "미측정";
+  return h("div", { class: "tbl-wrap" }, h("table", { class: "cmp" },
+    h("thead", null, h("tr", null, h("th", null, "평가 지표"), h("th", null, "규칙 기반"), h("th", null, "Gemini AI"))),
+    h("tbody", null,
+      row("칸 분류 정확도", rm ? frac(rm.cat, rm.n) : none, am ? frac(am.cat, am.n) : none),
+      row("긴급도 정확도", rm ? frac(rm.urg, rm.n) : none, am ? frac(am.urg, am.n) : none),
+      row("둘 다 정답", rm ? rm.both + "건" : none, am ? am.both + "건" : none),
+      row("오분류", rm ? rm.wrong + "건" : none, am ? am.wrong + "건" : none),
+      row("응답 실패", "해당 없음", am ? am.fail + "건" : none),
+      row("가장 나쁜 실수 (" + (rm || am).worstCat + " 안건을 다른 칸으로)",
+        rm ? rm.worstMiss + " / " + rm.worstTotal + "건" : none,
+        am ? am.worstMiss + " / " + am.worstTotal + "건" + (am.worstFail ? " (응답 실패 " + am.worstFail + "건 별도)" : "") : none))));
+}
+function gMark(ok) { return ok ? "○" : "✕"; }
+function gPred(label, r, g) {
+  var d = h("div", { class: "diff" }, h("b", null, label + " "));
+  if (r.fail) { d.append("응답 실패 — " + r.error); return d; }
+  d.append(h("span", { class: r.category === g["칸"] ? "okt" : "bad-t", text: gMark(r.category === g["칸"]) + " " + r.category }), " / ",
+    h("span", { class: r.urgency === g["긴급도"] ? "okt" : "bad-t", text: gMark(r.urgency === g["긴급도"]) + " " + r.urgency }));
+  return d;
+}
+function gIsBoth(r, g) { return !r.fail && r.category === g["칸"] && r.urgency === g["긴급도"]; }
+function gMismatch(gold, ruleR, aiR) {
+  var worstCat = CRITERIA["판정순서"][0], topUrg = CRITERIA["긴급도"][0]["이름"];
+  var ul = h("ul", { class: "wrongs" }), count = 0;
+  gold.forEach(function (g, i) {
+    var rr = ruleR ? ruleR[i] : null, ar = aiR ? aiR[i] : null;
+    if (!((rr && !gIsBoth(rr, g)) || (ar && !gIsBoth(ar, g)))) return;
+    count++;
+    var li = h("li", { class: "wrong" }, h("div", { class: "src", text: g.id + " · " + g.text }));
+    var tags = h("div", { class: "tags" });
+    if (g["칸"] === worstCat) {
+      if (rr && !rr.fail && rr.category !== worstCat) tags.append(h("span", { class: "tag bad", text: "가장 나쁜 실수 — 규칙" }));
+      if (ar && !ar.fail && ar.category !== worstCat) tags.append(h("span", { class: "tag bad", text: "가장 나쁜 실수 — AI" }));
+      if (ar && ar.fail) tags.append(h("span", { class: "tag bad", text: worstCat + " 안건인데 AI 응답 실패" }));
+      if (g["긴급도"] === topUrg) tags.append(h("span", { class: "tag bad", text: "정답 긴급도 " + topUrg + " (안전·법규 우려 또는 임박한 차질)" }));
+    }
+    if (g.note) tags.append(h("span", { class: "tag", text: "정답에 「" + g.note + "」 표기 — 정답 그대로 적용" }));
+    li.append(h("div", { class: "diff" }, h("b", null, "정답 "), g["칸"] + " / " + g["긴급도"]));
+    if (rr) li.append(gPred("규칙", rr, g));
+    if (ar) li.append(gPred("AI", ar, g));
+    if (tags.childNodes.length) li.append(tags);
+    if (rr) li.append(h("div", { class: "rsn", text: "규칙의 판정 이유: " + rr.reason }));
+    if (ar && !ar.fail) li.append(h("div", { class: "rsn", text: "AI의 판정 이유: " + ar.reason }));
+    ul.append(li);
+  });
+  return { ul: ul, count: count };
+}
+function gRepeat(gold) {
+  if (G.aiRuns.length < 2 || !G.ruleRows) return null;
+  var rm = gMetrics(G.ruleRows, gold), ms = G.aiRuns.map(function (r) { return gMetrics(r.rows, gold); });
+  function stat(key) {
+    var v = ms.map(function (m) { return m[key] / m.n * 100; });
+    var mean = v.reduce(function (a, b) { return a + b; }, 0) / v.length;
+    return { v: v, wobble: Math.max.apply(null, v) - Math.min.apply(null, v), gain: mean - rm[key] / rm.n * 100 };
+  }
+  function line(label, st) {
+    return label + ": " + st.v.map(function (x) { return x.toFixed(1) + "%"; }).join(", ") + " → 규칙 대비 평균 개선 " + st.gain.toFixed(1) +
+      "%p, 측정 흔들림(최대-최소) " + st.wobble.toFixed(1) + "%p → " + (st.gain > 0 && st.gain > st.wobble ? "개선 폭이 흔들림보다 큼" : "개선 폭이 흔들림보다 크지 않음");
+  }
+  return h("div", { class: "notice info" }, h("b", null, "같은 조건으로 AI 채점 " + G.aiRuns.length + "회 측정"), h("div", null, line("칸", stat("cat"))), h("div", null, line("긴급도", stat("urg"))));
+}
+function renderGradeOut() {
+  var out = $("#grade-out"); if (!out) return; out.textContent = "";
+  var gold = G.gold, m = KEYWORDS["메타"];
+  var run = G.aiRuns.length ? G.aiRuns[G.aiRuns.length - 1] : null;
+  var rm = G.ruleRows ? gMetrics(G.ruleRows, gold) : null, am = run ? gMetrics(run.rows, gold) : null;
+  var n = gold.length, noteCount = gold.filter(function (g) { return g.note; }).length;
+  var list = gMismatch(gold, G.ruleRows, run && run.rows);
+  out.append(h("h3", { text: "채점 결과 (평가 " + n + "건)" }), gCmpTable(rm, am),
+    h("p", { class: "hint mt", text: "둘 다 정답 + 오분류 + 응답 실패 = 평가 건수. AI가 답하지 못한 문장은 오답으로 계산했고 응답 실패로 따로 셌습니다." }));
+  var rep = gRepeat(gold); if (rep) out.append(rep);
+  if (run) $("#dl-btn").hidden = false;
+  out.append(
+    h("h3", { text: "틀린 문장 " + list.count + "건 (원문 / 정답 / 규칙 판정 / AI 판정)" }),
+    list.count ? list.ul : h("p", { class: "okt", text: "모두 맞혔습니다." }),
+    h("h3", { text: "측정 조건" }),
+    h("dl", { class: "cond" },
+      h("dt", null, "평가 건수"), h("dd", null, n + "건 (data/answer.json, 정답에 「판단이 갈린다」 표기 " + noteCount + "건 포함, 정답 그대로 적용)"),
+      h("dt", null, "문장 처리"), h("dd", null, "개인정보(이름·전화번호·사번·이메일)를 가린 문장으로 규칙과 AI 모두 분류"),
+      h("dt", null, "규칙"), h("dd", null, m["출처"] + " " + m["연습문장수"] + "문장에서 추출한 낱말 (최소 " + m["최소_등장_문장수"] + "문장 등장, 집중도 " + m["최소_집중도"] + " 이상). 칸은 동점이면 판정 순서(" + CRITERIA["판정순서"].join(" → ") + "), 낱말이 없으면 마지막 칸. 긴급도는 동점이면 더 급한 쪽, 낱말이 없으면 " + CRITERIA["긴급도"][1]["이름"]),
+      h("dt", null, "AI"), h("dd", null, run ? "모델 " + (run.model || "확인 안 됨") + ", " + GBATCH + "문장씩 " + run.requests + "번 요청, 온도 0, 서버 응답 대기 60초. 분류 기준은 criteria.json을 그대로 전달 (측정 " + run.when.toLocaleString("ko-KR") + ", " + G.aiRuns.length + "회차)" : "아직 측정하지 않음"),
+      h("dt", null, "규칙 측정 시각"), h("dd", null, "규칙은 같은 조건에서 결과가 항상 같음")));
+  out.hidden = false;
+}
+function onGradeDownload() {
+  if (!G.aiRuns.length || !G.gold) return;
+  var gold = G.gold, run = G.aiRuns[G.aiRuns.length - 1], m = KEYWORDS["메타"], worstCat = CRITERIA["판정순서"][0];
+  var rm = gMetrics(G.ruleRows, gold), am = gMetrics(run.rows, gold);
+  function sum(x) {
+    return { 평가건수: x.n, 칸정확도: +(x.cat / x.n * 100).toFixed(1), 칸맞힌건수: x.cat, 긴급도정확도: +(x.urg / x.n * 100).toFixed(1), 긴급도맞힌건수: x.urg,
+      둘다정답: x.both, 오분류: x.wrong, 응답실패: x.fail, 가장나쁜실수: x.worstMiss, 가장나쁜실수_대상: x.worstTotal };
+  }
+  var obj = {
+    측정조건: {
+      정답파일: "data/answer.json", 평가건수: gold.length, 판단이갈린다_표기: gold.filter(function (g) { return g.note; }).length,
+      문장처리: "이름·전화번호·사번·이메일을 가린 문장으로 분류",
+      규칙: { 낱말출처: m["출처"], 연습문장수: m["연습문장수"], 최소_등장_문장수: m["최소_등장_문장수"], 최소_집중도: m["최소_집중도"], 낱말_최소_길이: m["낱말_최소_길이"] },
+      AI: { 모델: run.model, 문장씩: GBATCH, 요청횟수: run.requests, 온도: 0, 서버응답대기초: 60, 측정시각: run.when.toISOString() },
+      가장나쁜실수_정의: worstCat + " 정답 안건을 다른 칸으로 분류"
+    },
+    정확도: { 규칙: sum(rm), AI: sum(am) }, 응답실패건수: am.fail,
+    측정회차: G.aiRuns.map(function (r, i) {
+      var x = gMetrics(r.rows, gold);
+      return { 회차: i + 1, 모델: r.model, 측정시각: r.when.toISOString(), 칸정확도: +(x.cat / x.n * 100).toFixed(1), 긴급도정확도: +(x.urg / x.n * 100).toFixed(1), 둘다정답: x.both, 오분류: x.wrong, 응답실패: x.fail };
+    }),
+    문장별: gold.map(function (g, i) {
+      var rr = G.ruleRows[i], ar = run.rows[i];
+      return {
+        id: g.id, 문장: g.text, 정답: { 칸: g["칸"], 긴급도: g["긴급도"], note: g.note || null },
+        규칙: { 칸: rr.category, 긴급도: rr.urgency, 이유: rr.reason, 칸정답: rr.category === g["칸"], 긴급도정답: rr.urgency === g["긴급도"] },
+        AI: ar.fail ? { 응답실패: true, 오류이유: ar.error }
+          : { 응답실패: false, 칸: ar.category, 긴급도: ar.urgency, 이유: ar.reason, 칸정답: ar.category === g["칸"], 긴급도정답: ar.urgency === g["긴급도"] },
+        가장나쁜실수_규칙: g["칸"] === worstCat && rr.category !== worstCat,
+        가장나쁜실수_AI: g["칸"] === worstCat && !ar.fail && ar.category !== worstCat
+      };
+    })
+  };
+  var url = URL.createObjectURL(new Blob([JSON.stringify(obj, null, 2)], { type: "application/json" }));
+  var a = document.createElement("a"); a.href = url; a.download = "ai_채점결과.json";
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+}
+function renderGrade() {
+  var v = $("#view-grade"); v.textContent = "";
+  v.append(h("div", { class: "panel" },
+    h("h2", { text: "정확도 점검" }),
+    h("p", { class: "hint", text: "팀장님이 정한 정답 30건과 규칙·AI의 판정을 견줍니다. 「AI로 채점」은 규칙 채점도 함께 해서 같은 30건으로 나란히 비교하고, AI에는 문장을 10개씩 3번 보냅니다." }),
+    h("div", { class: "row" },
+      h("button", { id: "grade-btn", class: "btn", type: "button", onclick: onRuleGrade }, "규칙으로 채점"),
+      h("button", { id: "ai-grade-btn", class: "btn primary", type: "button", onclick: onAIGrade }, "AI로 채점"),
+      h("button", { id: "dl-btn", class: "btn", type: "button", hidden: true, onclick: onGradeDownload }, "AI 채점 결과 내려받기")),
+    h("div", { id: "grade-status", class: "hint mt", role: "status", "aria-live": "polite" }),
+    h("div", { id: "grade-out", hidden: true })));
+  if (G.ruleRows || G.aiRuns.length) renderGradeOut();
+}
+
+/* ===================== 화면 전환 ===================== */
+var TABS = ["classify", "list", "rules", "grade"];
 function showTab() {
   var t = (location.hash || "").replace("#", "");
   if (TABS.indexOf(t) < 0) t = "classify";
@@ -1044,6 +1284,7 @@ function showTab() {
     var a = $('#tabs a[data-tab="' + k + '"]'); if (a) { if (k === t) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current"); }
   });
   if (t === "list") renderList();
+  if (t === "grade" && !$("#grade-btn")) renderGrade();
 }
 window.addEventListener("hashchange", showTab);
 
